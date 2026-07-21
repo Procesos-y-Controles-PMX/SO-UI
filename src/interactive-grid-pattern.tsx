@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { cn } from "./lib/cn";
 
 /**
  * InteractiveGridPattern is a component that renders a grid pattern with interactive squares.
+ *
+ * Pointer tracking is global (window) so cells highlight even when UI panels sit on top
+ * of the grid — the SVG itself is pointer-events-none and never blocks clicks.
  *
  * @param width - The width of each square.
  * @param height - The height of each square.
@@ -37,13 +40,56 @@ export function InteractiveGridPattern({
 }: InteractiveGridPatternProps) {
   const [horizontal, vertical] = squares;
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const onMove = (event: PointerEvent) => {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) {
+        setHoveredSquare(null);
+        return;
+      }
+
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const local = point.matrixTransform(ctm.inverse());
+
+      const col = Math.floor(local.x / width);
+      const row = Math.floor(local.y / height);
+
+      if (col < 0 || row < 0 || col >= horizontal || row >= vertical) {
+        setHoveredSquare(null);
+        return;
+      }
+
+      setHoveredSquare(row * horizontal + col);
+    };
+
+    const onLeave = () => setHoveredSquare(null);
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("blur", onLeave);
+    document.addEventListener("mouseleave", onLeave);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("blur", onLeave);
+      document.removeEventListener("mouseleave", onLeave);
+    };
+  }, [width, height, horizontal, vertical]);
 
   return (
     <svg
+      ref={svgRef}
       width={width * horizontal}
       height={height * vertical}
+      aria-hidden="true"
       className={cn(
-        "absolute inset-0 h-full w-full border border-gray-400/30",
+        "pointer-events-none absolute inset-0 h-full w-full border border-gray-400/30",
         className,
       )}
       {...props}
@@ -51,6 +97,7 @@ export function InteractiveGridPattern({
       {Array.from({ length: horizontal * vertical }).map((_, index) => {
         const x = (index % horizontal) * width;
         const y = Math.floor(index / horizontal) * height;
+        const active = hoveredSquare === index;
         return (
           <rect
             key={index}
@@ -59,12 +106,12 @@ export function InteractiveGridPattern({
             width={width}
             height={height}
             className={cn(
-              "stroke-gray-400/30 transition-all duration-100 ease-in-out not-[&:hover]:duration-1000",
-              hoveredSquare === index ? "fill-gray-300/30" : "fill-transparent",
+              "stroke-gray-400/40 transition-[fill] duration-150 ease-out",
+              active ? "fill-brand/20" : "fill-transparent",
               squaresClassName,
+              // Keep active fill after squaresClassName so app hover: utilities can't wipe it.
+              active && "fill-brand/20",
             )}
-            onMouseEnter={() => setHoveredSquare(index)}
-            onMouseLeave={() => setHoveredSquare(null)}
           />
         );
       })}
