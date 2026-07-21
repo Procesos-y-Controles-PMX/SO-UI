@@ -5,14 +5,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "./lib/cn";
 
 /**
- * Interactive tilted grid — rebuilt for screen-space square cells.
+ * Interactive tilted grid — screen-space square cells.
  *
- * Previous approaches stretched an SVG into the clip box (non-square cells) or
- * used fragile overscan math. This version:
- * 1. Measures the clip box
- * 2. Builds a grid of fixed CSS-pixel squares (always 1:1)
- * 3. Centers an oversized layer and applies skewY so edges stay covered
- * 4. Maps the pointer with SVG getScreenCTM (works under opaque UI)
+ * Paint and hit-test share one model:
+ * - Cells are fixed CSS pixels (always square)
+ * - Layer is centered with pixel left/top (no % translate)
+ * - Skew is SVG `skewY` about the layer center
+ * - Pointer → cell uses the inverse of that same skew (no getScreenCTM;
+ *   CSS/SVG CTM mismatches in Safari caused a multi-cell Y offset)
  */
 export interface InteractiveGridPatternProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
@@ -29,7 +29,7 @@ export interface InteractiveGridPatternProps
   squares?: [number, number];
   className?: string;
   squaresClassName?: string;
-  /** CSS skewY in degrees. @default 0 */
+  /** SkewY in degrees. @default 0 */
   skewY?: number;
 }
 
@@ -47,7 +47,6 @@ export function InteractiveGridPattern({
 
   const size = Math.max(8, cellSize ?? Math.min(width, height));
   const clipRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -66,19 +65,25 @@ export function InteractiveGridPattern({
     return () => ro.disconnect();
   }, []);
 
-  // Pad enough cells that skewY cannot expose empty corners.
-  const skewTan = Math.abs(Math.tan((skewY * Math.PI) / 180));
-  const padX = skewY === 0 ? 1 : Math.ceil((box.h * skewTan) / size) + 2;
-  const padY = skewY === 0 ? 1 : Math.ceil((box.w * skewTan) / size) + 2;
+  const skewTan = Math.tan((skewY * Math.PI) / 180);
+  const skewTanAbs = Math.abs(skewTan);
+  const padX = skewY === 0 ? 1 : Math.ceil((box.h * skewTanAbs) / size) + 2;
+  const padY = skewY === 0 ? 1 : Math.ceil((box.w * skewTanAbs) / size) + 2;
   const cols = box.w > 0 ? Math.ceil(box.w / size) + padX * 2 : 0;
   const rows = box.h > 0 ? Math.ceil(box.h / size) + padY * 2 : 0;
   const gridW = cols * size;
   const gridH = rows * size;
+  const offsetLeft = (box.w - gridW) / 2;
+  const offsetTop = (box.h - gridH) / 2;
+
+  const skewTransform =
+    skewY !== 0
+      ? `translate(${gridW / 2} ${gridH / 2}) skewY(${skewY}) translate(${-gridW / 2} ${-gridH / 2})`
+      : undefined;
 
   useEffect(() => {
     const clip = clipRef.current;
-    const svg = svgRef.current;
-    if (!clip || !svg || cols === 0 || rows === 0) return;
+    if (!clip || cols === 0 || rows === 0) return;
 
     const onMove = (event: PointerEvent) => {
       const bounds = clip.getBoundingClientRect();
@@ -92,23 +97,30 @@ export function InteractiveGridPattern({
         return;
       }
 
-      const ctm = svg.getScreenCTM();
-      if (!ctm) {
+      // Layer center in viewport pixels (matches SVG skew-about-center).
+      const cx = bounds.left + offsetLeft + gridW / 2;
+      const cy = bounds.top + offsetTop + gridH / 2;
+
+      // Screen → centered coords
+      let x = event.clientX - cx;
+      let y = event.clientY - cy;
+
+      // Inverse skewY about center: forward (x, y) → (x, y + x·tanθ)
+      if (skewY !== 0) {
+        y -= x * skewTan;
+      }
+
+      // Centered → grid local
+      const localX = x + gridW / 2;
+      const localY = y + gridH / 2;
+
+      if (localX < 0 || localY < 0 || localX >= gridW || localY >= gridH) {
         setHovered(null);
         return;
       }
 
-      const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(
-        ctm.inverse(),
-      );
-
-      if (local.x < 0 || local.y < 0 || local.x >= gridW || local.y >= gridH) {
-        setHovered(null);
-        return;
-      }
-
-      const col = Math.min(cols - 1, Math.max(0, Math.floor(local.x / size)));
-      const row = Math.min(rows - 1, Math.max(0, Math.floor(local.y / size)));
+      const col = Math.min(cols - 1, Math.max(0, Math.floor(localX / size)));
+      const row = Math.min(rows - 1, Math.max(0, Math.floor(localY / size)));
       setHovered(row * cols + col);
     };
 
@@ -123,7 +135,7 @@ export function InteractiveGridPattern({
       window.removeEventListener("blur", clear);
       document.documentElement.removeEventListener("mouseleave", clear);
     };
-  }, [cols, rows, size, gridW, gridH, skewY]);
+  }, [cols, rows, size, gridW, gridH, offsetLeft, offsetTop, skewY, skewTan]);
 
   return (
     <div
@@ -134,44 +146,39 @@ export function InteractiveGridPattern({
     >
       {cols > 0 && rows > 0 ? (
         <svg
-          ref={svgRef}
           width={gridW}
           height={gridH}
-          // Lock CSS size to the same px as the SVG attributes → no stretch.
           style={{
             position: "absolute",
-            left: "50%",
-            top: "50%",
+            left: offsetLeft,
+            top: offsetTop,
             width: gridW,
             height: gridH,
-            transformOrigin: "center",
-            transform:
-              skewY !== 0
-                ? `translate(-50%, -50%) skewY(${skewY}deg)`
-                : "translate(-50%, -50%)",
-            willChange: "transform",
+            overflow: "visible",
           }}
         >
-          {Array.from({ length: cols * rows }, (_, index) => {
-            const x = (index % cols) * size;
-            const y = Math.floor(index / cols) * size;
-            const active = hovered === index;
-            return (
-              <rect
-                key={index}
-                x={x}
-                y={y}
-                width={size}
-                height={size}
-                className={cn(
-                  "stroke-gray-400/40 transition-[fill,stroke] duration-100 ease-out",
-                  squaresClassName,
-                )}
-                fill={active ? "rgba(237, 28, 36, 0.22)" : "transparent"}
-                stroke={active ? "rgba(237, 28, 36, 0.45)" : undefined}
-              />
-            );
-          })}
+          <g transform={skewTransform}>
+            {Array.from({ length: cols * rows }, (_, index) => {
+              const x = (index % cols) * size;
+              const y = Math.floor(index / cols) * size;
+              const active = hovered === index;
+              return (
+                <rect
+                  key={index}
+                  x={x}
+                  y={y}
+                  width={size}
+                  height={size}
+                  className={cn(
+                    "stroke-gray-400/40 transition-[fill,stroke] duration-100 ease-out",
+                    squaresClassName,
+                  )}
+                  fill={active ? "rgba(237, 28, 36, 0.22)" : "transparent"}
+                  stroke={active ? "rgba(237, 28, 36, 0.45)" : undefined}
+                />
+              );
+            })}
+          </g>
         </svg>
       ) : null}
     </div>
