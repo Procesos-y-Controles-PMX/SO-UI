@@ -7,10 +7,7 @@ import { cn } from "./lib/cn";
 /**
  * Interactive grid mesh (Magic UI), with optional tilt and global pointer tracking.
  *
- * Tilt uses the same fill trick as Magic UI demos: the SVG is taller than its
- * clip box and shifted up (`-top-[50%] h-[200%]`), then skewY'd from center so
- * the parent never shows an empty wedge at the top or sides.
- *
+ * Coverage uses uniform scale (not a non-uniform height stretch) so cells stay square.
  * Hover works through opaque UI via window `pointermove` + SVG `getScreenCTM`.
  */
 interface InteractiveGridPatternProps
@@ -23,6 +20,9 @@ interface InteractiveGridPatternProps
   /** Visual tilt in degrees (CSS skewY). */
   skewY?: number;
 }
+
+/** Extra uniform scale so skewY does not expose empty corners. */
+const SKEW_COVER_SCALE = 1.4;
 
 export function InteractiveGridPattern({
   width = 40,
@@ -102,14 +102,14 @@ export function InteractiveGridPattern({
     >
       <svg
         ref={svgRef}
-        width={svgW}
-        height={svgH}
-        className={cn(
-          "absolute left-0 w-full",
-          // Magic UI tilt fill: oversize vertically, shift up, skew from center.
-          skewY !== 0 ? "inset-x-0 -top-[50%] h-[200%] origin-center" : "inset-0 h-full",
-        )}
-        style={skewY !== 0 ? { transform: `skewY(${skewY}deg)` } : undefined}
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        preserveAspectRatio="xMidYMid slice"
+        className="absolute inset-0 h-full w-full origin-center will-change-transform"
+        style={
+          skewY !== 0
+            ? { transform: `skewY(${skewY}deg) scale(${SKEW_COVER_SCALE})` }
+            : undefined
+        }
       >
         {Array.from({ length: horizontal * vertical }).map((_, index) => {
           const x = (index % horizontal) * width;
