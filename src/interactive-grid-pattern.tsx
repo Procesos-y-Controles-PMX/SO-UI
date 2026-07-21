@@ -5,11 +5,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "./lib/cn";
 
 /**
- * Interactive grid mesh.
+ * Interactive grid mesh with optional tilt.
  *
- * Hit-testing uses an untransformed track layer so cursor ↔ cell stays accurate.
- * Optional skewY is applied only to the inner SVG (origin top-left); pointer
- * coords are inverse-skewed into that space.
+ * Hit-testing uses the clipped track box. The inner SVG is slightly oversized and
+ * skewY'd from the top-left so the tilt never leaves an empty wedge at the edges.
  */
 interface InteractiveGridPatternProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
@@ -21,6 +20,9 @@ interface InteractiveGridPatternProps
   /** Visual tilt in degrees (CSS skewY). */
   skewY?: number;
 }
+
+/** Extra SVG coverage so skewY does not expose empty corners. */
+const OVERSCAN = 0.22; // 22% beyond the track on the axis that skew opens up
 
 export function InteractiveGridPattern({
   width = 40,
@@ -51,27 +53,44 @@ export function InteractiveGridPattern({
         return;
       }
 
-      let x = event.clientX - box.left;
-      let y = event.clientY - box.top;
+      // Visible clip test (cursor must be over the track).
+      if (
+        event.clientX < box.left ||
+        event.clientX > box.right ||
+        event.clientY < box.top ||
+        event.clientY > box.bottom
+      ) {
+        setHoveredSquare(null);
+        return;
+      }
 
-      // Undo skewY with transform-origin top-left:
-      // forward (x, y) → (x, y + x·tanθ)
+      // Map into the oversized SVG's pre-transform layout space.
+      // SVG is positioned at top: -OVERSCAN*H, height: (1+2*OVERSCAN)*H, origin 0 0.
+      const overY = box.height * OVERSCAN;
+      const layoutH = box.height + overY * 2;
+      const layoutW = box.width;
+
+      let x = event.clientX - box.left;
+      let y = event.clientY - box.top + overY;
+
+      // Inverse skewY with transform-origin (0,0):
+      // forward (x,y) → (x, y + x·tanθ)
       if (skewY !== 0) {
         y -= x * skewTan;
       }
 
-      if (x < 0 || y < 0 || x >= box.width || y >= box.height) {
+      if (x < 0 || y < 0 || x >= layoutW || y >= layoutH) {
         setHoveredSquare(null);
         return;
       }
 
       const col = Math.min(
         horizontal - 1,
-        Math.max(0, Math.floor((x / box.width) * horizontal)),
+        Math.max(0, Math.floor((x / layoutW) * horizontal)),
       );
       const row = Math.min(
         vertical - 1,
-        Math.max(0, Math.floor((y / box.height) * vertical)),
+        Math.max(0, Math.floor((y / layoutH) * vertical)),
       );
       setHoveredSquare(row * horizontal + col);
     };
@@ -89,6 +108,8 @@ export function InteractiveGridPattern({
     };
   }, [horizontal, vertical, skewY]);
 
+  const overPct = OVERSCAN * 100;
+
   return (
     <div
       ref={trackRef}
@@ -99,12 +120,13 @@ export function InteractiveGridPattern({
       <svg
         viewBox={`0 0 ${svgW} ${svgH}`}
         preserveAspectRatio="none"
-        className={cn(
-          "absolute inset-0 h-full w-full origin-top-left will-change-transform",
-        )}
-        style={
-          skewY !== 0 ? { transform: `skewY(${skewY}deg)` } : undefined
-        }
+        className="absolute left-0 w-full origin-top-left will-change-transform"
+        style={{
+          top: `-${overPct}%`,
+          height: `${100 + overPct * 2}%`,
+          transformOrigin: "0 0",
+          transform: skewY !== 0 ? `skewY(${skewY}deg)` : undefined,
+        }}
       >
         {Array.from({ length: horizontal * vertical }).map((_, index) => {
           const x = (index % horizontal) * width;
