@@ -5,16 +5,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "./lib/cn";
 
 /**
- * InteractiveGridPattern is a component that renders a grid pattern with interactive squares.
+ * InteractiveGridPattern — full-bleed interactive mesh.
  *
- * Pointer tracking is global (window) so cells highlight even when UI panels sit on top
- * of the grid — the SVG itself is pointer-events-none and never blocks clicks.
- *
- * @param width - The width of each square.
- * @param height - The height of each square.
- * @param squares - The number of squares in the grid. The first element is the number of horizontal squares, and the second element is the number of vertical squares.
- * @param className - The class name of the grid.
- * @param squaresClassName - The class name of the squares.
+ * Tracks the window pointer so cells light up even under UI panels.
+ * Hit-testing uses the element's layout box (not SVG CTM), so CSS stretch
+ * stays accurate. Optional skewY is inverted with transform-origin top-left.
  */
 interface InteractiveGridPatternProps extends React.SVGProps<SVGSVGElement> {
   width?: number;
@@ -22,50 +17,54 @@ interface InteractiveGridPatternProps extends React.SVGProps<SVGSVGElement> {
   squares?: [number, number]; // [horizontal, vertical]
   className?: string;
   squaresClassName?: string;
+  /** Degrees of CSS skew-y. Pair with `origin-top-left` in className. */
+  skewY?: number;
 }
 
-/**
- * The InteractiveGridPattern component.
- *
- * @see InteractiveGridPatternProps for the props interface.
- * @returns A React component.
- */
 export function InteractiveGridPattern({
   width = 40,
   height = 40,
   squares = [24, 24],
   className,
   squaresClassName,
+  skewY = 0,
   ...props
 }: InteractiveGridPatternProps) {
   const [horizontal, vertical] = squares;
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const svgW = width * horizontal;
+  const svgH = height * vertical;
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
 
+    const skewTan = Math.tan((skewY * Math.PI) / 180);
+
     const onMove = (event: PointerEvent) => {
-      const ctm = svg.getScreenCTM();
-      if (!ctm) {
+      const box = svg.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) {
         setHoveredSquare(null);
         return;
       }
 
-      const point = svg.createSVGPoint();
-      point.x = event.clientX;
-      point.y = event.clientY;
-      const local = point.matrixTransform(ctm.inverse());
+      // Position in the laid-out (post-CSS-size) box, then undo skewY
+      // assuming transform-origin: top left.
+      let x = event.clientX - box.left;
+      let y = event.clientY - box.top;
+      if (skewY !== 0) {
+        y = y - x * skewTan;
+      }
 
-      const col = Math.floor(local.x / width);
-      const row = Math.floor(local.y / height);
-
-      if (col < 0 || row < 0 || col >= horizontal || row >= vertical) {
+      if (x < 0 || y < 0 || x > box.width || y > box.height) {
         setHoveredSquare(null);
         return;
       }
 
+      const col = Math.min(horizontal - 1, Math.max(0, Math.floor((x / box.width) * horizontal)));
+      const row = Math.min(vertical - 1, Math.max(0, Math.floor((y / box.height) * vertical)));
       setHoveredSquare(row * horizontal + col);
     };
 
@@ -73,25 +72,27 @@ export function InteractiveGridPattern({
 
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("blur", onLeave);
-    document.addEventListener("mouseleave", onLeave);
+    document.documentElement.addEventListener("mouseleave", onLeave);
 
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("blur", onLeave);
-      document.removeEventListener("mouseleave", onLeave);
+      document.documentElement.removeEventListener("mouseleave", onLeave);
     };
-  }, [width, height, horizontal, vertical]);
+  }, [horizontal, vertical, skewY]);
 
   return (
     <svg
       ref={svgRef}
-      width={width * horizontal}
-      height={height * vertical}
+      viewBox={`0 0 ${svgW} ${svgH}`}
+      preserveAspectRatio="none"
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-0 h-full w-full border border-gray-400/30",
+        "pointer-events-none absolute inset-0 h-full w-full border-0",
+        skewY !== 0 && "origin-top-left",
         className,
       )}
+      style={skewY !== 0 ? { transform: `skewY(${skewY}deg)` } : undefined}
       {...props}
     >
       {Array.from({ length: horizontal * vertical }).map((_, index) => {
@@ -106,12 +107,12 @@ export function InteractiveGridPattern({
             width={width}
             height={height}
             className={cn(
-              "stroke-gray-400/40 transition-[fill] duration-150 ease-out",
-              active ? "fill-brand/20" : "fill-transparent",
+              "stroke-gray-400/40 transition-[fill] duration-100 ease-out",
               squaresClassName,
-              // Keep active fill after squaresClassName so app hover: utilities can't wipe it.
-              active && "fill-brand/20",
             )}
+            // Inline fill so highlight never depends on Tailwind scanning `brand`.
+            fill={active ? "rgba(237, 28, 36, 0.18)" : "transparent"}
+            stroke={active ? "rgba(237, 28, 36, 0.35)" : undefined}
           />
         );
       })}
