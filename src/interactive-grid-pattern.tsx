@@ -5,10 +5,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "./lib/cn";
 
 /**
- * Interactive grid mesh with optional tilt.
+ * Interactive grid mesh (Magic UI), with optional tilt and global pointer tracking.
  *
- * Hit-testing uses the SVG screen CTM (handles skew + overscan). The inner SVG is
- * oversized so skewY never leaves an empty wedge along the top/bottom edges.
+ * Tilt uses the same fill trick as Magic UI demos: the SVG is taller than its
+ * clip box and shifted up (`-top-[50%] h-[200%]`), then skewY'd from center so
+ * the parent never shows an empty wedge at the top or sides.
+ *
+ * Hover works through opaque UI via window `pointermove` + SVG `getScreenCTM`.
  */
 interface InteractiveGridPatternProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
@@ -32,46 +35,22 @@ export function InteractiveGridPattern({
 }: InteractiveGridPatternProps) {
   const [horizontal, vertical] = squares;
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
-  const [overscanY, setOverscanY] = useState(0.25);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const clipRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const svgW = width * horizontal;
   const svgH = height * vertical;
 
-  // Keep enough vertical overscan that skewY cannot expose empty corners.
-  // Required lift ≈ width·tan(θ); express as a fraction of track height.
   useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-
-    const update = () => {
-      const { width: w, height: h } = track.getBoundingClientRect();
-      if (w <= 0 || h <= 0) return;
-      const skewTan = Math.abs(Math.tan((skewY * Math.PI) / 180));
-      const needed = skewY === 0 ? 0.08 : (w / h) * skewTan + 0.08;
-      setOverscanY(Math.min(0.55, Math.max(0.18, needed)));
-    };
-
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(track);
-    return () => ro.disconnect();
-  }, [skewY]);
-
-  useEffect(() => {
-    const track = trackRef.current;
+    const clip = clipRef.current;
     const svg = svgRef.current;
-    if (!track || !svg) return;
+    if (!clip || !svg) return;
 
     const onMove = (event: PointerEvent) => {
-      const box = track.getBoundingClientRect();
-      if (box.width <= 0 || box.height <= 0) {
-        setHoveredSquare(null);
-        return;
-      }
-
+      const box = clip.getBoundingClientRect();
       if (
+        box.width <= 0 ||
+        box.height <= 0 ||
         event.clientX < box.left ||
         event.clientX > box.right ||
         event.clientY < box.top ||
@@ -87,11 +66,9 @@ export function InteractiveGridPattern({
         return;
       }
 
-      // Screen → SVG user space (viewBox units), including skew + overscan layout.
-      const pt = svg.createSVGPoint();
-      pt.x = event.clientX;
-      pt.y = event.clientY;
-      const local = pt.matrixTransform(ctm.inverse());
+      const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+        ctm.inverse(),
+      );
 
       if (local.x < 0 || local.y < 0 || local.x >= svgW || local.y >= svgH) {
         setHoveredSquare(null);
@@ -114,28 +91,25 @@ export function InteractiveGridPattern({
       window.removeEventListener("blur", clear);
       document.documentElement.removeEventListener("mouseleave", clear);
     };
-  }, [horizontal, vertical, width, height, svgW, svgH, overscanY]);
-
-  const overPct = overscanY * 100;
+  }, [horizontal, vertical, width, height, svgW, svgH, skewY]);
 
   return (
     <div
-      ref={trackRef}
+      ref={clipRef}
       aria-hidden="true"
       className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}
       {...props}
     >
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${svgW} ${svgH}`}
-        preserveAspectRatio="none"
-        className="absolute left-0 w-full origin-top-left will-change-transform"
-        style={{
-          top: `-${overPct}%`,
-          height: `${100 + overPct * 2}%`,
-          transformOrigin: "0 0",
-          transform: skewY !== 0 ? `skewY(${skewY}deg)` : undefined,
-        }}
+        width={svgW}
+        height={svgH}
+        className={cn(
+          "absolute left-0 w-full",
+          // Magic UI tilt fill: oversize vertically, shift up, skew from center.
+          skewY !== 0 ? "inset-x-0 -top-[50%] h-[200%] origin-center" : "inset-0 h-full",
+        )}
+        style={skewY !== 0 ? { transform: `skewY(${skewY}deg)` } : undefined}
       >
         {Array.from({ length: horizontal * vertical }).map((_, index) => {
           const x = (index % horizontal) * width;
