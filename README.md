@@ -36,7 +36,7 @@ import {
 } from "@promexma/ui";
 
 // Login / hero backdrop with ambient red wave, cursor trail, + hover
-<InteractiveGridPattern cellSize={40} wave trail />
+<InteractiveGridPattern cellSize={40} skewY={6} wave trail />
 ```
 
 ## Develop

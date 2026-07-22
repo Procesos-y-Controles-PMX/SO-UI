@@ -1,6 +1,6 @@
 {
   "name": "@promexma/ui",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Shared UI primitives for the SO Promexma suite",
   "license": "UNLICENSED",
   "private": false,

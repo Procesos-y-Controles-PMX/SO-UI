@@ -14,8 +14,8 @@ import { cn } from "./lib/cn";
  * - Pointer → cell uses the inverse of that same skew (no getScreenCTM;
  *   CSS/SVG CTM mismatches in Safari caused a multi-cell Y offset)
  *
- * Optional `wave`: thick irregular beach bands roll nearly horizontally
- * (sometimes two, never more, never too close) with quantized intensity.
+ * Optional `wave`: thick irregular beach bands roll along grid rows
+ * (mesh-horizontal under skew; sometimes two, never more) with quantized intensity.
  * Optional `trail`: cursor path lights cells that fade out over time.
  * Hover still wins on the pointed cell.
  */
@@ -68,23 +68,18 @@ const DEFAULT_TRAIL_MS = 850;
 const FOLLOW_PATTERN: ReadonlyArray<0 | 1> = [
   0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0,
 ];
-/**
- * Small crest slopes per episode — mostly horizontal (low col mix),
- * with a little angle variation so it doesn’t look locked.
- */
-const SLOPE_PATTERN = [
-  0.12, 0.2, 0.08, 0.16, 0.24, 0.1, 0.18, 0.14, 0.22, 0.09, 0.17, 0.11,
-];
 
-/** One traveling crest: progress + slight crest slope. */
+/** One traveling crest — progress along grid rows (horizontal in mesh space). */
 interface WaveCrest {
   front: number;
-  /** Col mix into travel axis — low values ≈ nearly horizontal crest. */
-  slope: number;
+  /** Episode seed for shoreline warp phase (not travel angle). */
+  seed: number;
 }
 
-function slopeForEpisode(episode: number): number {
-  return SLOPE_PATTERN[episode % SLOPE_PATTERN.length]!;
+function seedForEpisode(episode: number): number {
+  // Deterministic phase offsets so successive crests don’t look identical.
+  const phases = [0, 1.7, 0.4, 2.3, 1.1, 2.9, 0.8, 2.0, 1.4, 0.2, 2.6, 1.9];
+  return phases[episode % phases.length]!;
 }
 
 /** Stable 0..1 noise per cell — irregular shoreline, no frame flicker. */
@@ -95,26 +90,25 @@ function cellNoise(col: number, row: number): number {
 
 /**
  * Beach-wave intensity for one crest.
- * Travel is mostly top→bottom so the lit band stays nearly horizontal;
- * `slope` adds only a small angle.
+ * Travel is purely along `row` so the lit band stays parallel to the grid’s
+ * horizontal lines (and therefore follows skewY with the mesh).
  */
 function crestIntensity(
   col: number,
   row: number,
   front: number,
-  slope: number,
+  seed: number,
 ): number {
   if (front < 0) return 0;
 
-  // Near-horizontal crest: progress mainly with row, gentle col lean.
-  const along = row + slope * col;
-  const across = col - slope * row;
+  // Crest parallel to grid horizontals; warp only frays the shoreline.
+  const along = row;
+  const across = col;
   const n = cellNoise(col, row);
 
-  // Shoreline warp — lobes + per-cell grit (still discrete once quantized).
   const warp =
-    Math.sin(across * 0.22 + front * 0.12 + slope * 3) * 2.2 +
-    Math.sin(across * 0.65 - front * 0.07 - slope * 2) * 1.4 +
+    Math.sin(across * 0.22 + front * 0.12 + seed) * 2.2 +
+    Math.sin(across * 0.65 - front * 0.07 - seed * 0.7) * 1.4 +
     Math.sin(across * 1.2 + n * 5.5) * 0.8 +
     (n - 0.5) * 1.6;
 
@@ -122,9 +116,7 @@ function crestIntensity(
   if (depth < 0 || depth > WAVE_BAND) return 0;
 
   const t = depth / WAVE_BAND; // 0 = crest, 1 = end of wash
-  // Bright breaking crest, longer fading wash behind.
   const profile = Math.pow(1 - t, 1.25);
-  // Foam speckles denser near the crest, sparse in the wash.
   const foam = n > 0.62 ? (n - 0.62) * 1.15 * (1 - t * 0.55) : 0;
   const raw = Math.min(1, profile * 0.92 + foam);
 
@@ -139,7 +131,7 @@ function waveIntensity(
 ): number {
   let max = 0;
   for (const crest of crests) {
-    const i = crestIntensity(col, row, crest.front, crest.slope);
+    const i = crestIntensity(col, row, crest.front, crest.seed);
     if (i > max) max = i;
   }
   return max;
@@ -219,7 +211,7 @@ export function InteractiveGridPattern({
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [hovered, setHovered] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
-  /** Active crests (0–2): progress + slight crest slope. */
+  /** Active crests (0–2): progress along grid rows. */
   const [waveFronts, setWaveFronts] = useState<WaveCrest[]>([]);
   /** Wall-clock stamp so trail decay re-renders while fading. */
   const [trailNow, setTrailNow] = useState(0);
@@ -283,8 +275,8 @@ export function InteractiveGridPattern({
   const offsetLeft = (box.w - gridW) / 2;
   const offsetTop = (box.h - gridH) / 2;
   const waveActive = wave && !reduceMotion && cols > 0 && rows > 0;
-  // Near-horizontal travel span (row-major + max slope × cols).
-  const travelSpan = rows + Math.ceil(0.28 * cols);
+  // Travel along rows only — crest stays mesh-horizontal under skewY.
+  const travelSpan = rows;
 
   // Step crests one cell at a time; occasionally run a second spaced wave.
   useEffect(() => {
@@ -294,7 +286,7 @@ export function InteractiveGridPattern({
     }
 
     const durationMs = Math.max(2, waveDuration) * 1000;
-    // Extra steps so the thick wash can clear the grid.
+    // Extra steps so the thick wash + shoreline warp can clear the grid.
     const sweepEnd = travelSpan + WAVE_BAND + 4;
     // Keep crests apart so dual waves read as two, not one blob.
     const minSeparation = Math.max(
@@ -313,7 +305,7 @@ export function InteractiveGridPattern({
     let followArmed = FOLLOW_PATTERN[0] === 1;
     const spawn = (ep: number): WaveCrest => ({
       front: 0,
-      slope: slopeForEpisode(ep),
+      seed: seedForEpisode(ep),
     });
     episode = 1;
     setWaveFronts([spawn(0)]);
@@ -336,7 +328,7 @@ export function InteractiveGridPattern({
         if (advanced.length === 1) {
           const lead = advanced[0]!;
 
-          // Intentional double — earlier follower (own slight slope).
+          // Intentional double — earlier follower (own shoreline seed).
           if (followArmed && lead.front >= minSeparation) {
             followArmed = false;
             const follower = spawn(episode);
