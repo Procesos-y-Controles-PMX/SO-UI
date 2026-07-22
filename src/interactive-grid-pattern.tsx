@@ -10,14 +10,18 @@ import { cn } from "./lib/cn";
  * Paint and hit-test share one model:
  * - Cells are fixed CSS pixels (always square)
  * - Layer is centered with pixel left/top (no % translate)
- * - Skew is SVG `skewY` about the layer center
- * - Pointer → cell uses the inverse of that same skew (no getScreenCTM;
- *   CSS/SVG CTM mismatches in Safari caused a multi-cell Y offset)
+ * - Skew is `skewY` about the layer center (canvas transform)
+ * - Pointer → cell uses the inverse of that same skew
  *
  * Optional `wave`: thick irregular beach bands roll along grid rows
  * (mesh-horizontal under skew; sometimes two, never more) with quantized intensity.
  * Optional `trail`: cursor path lights cells that fade out over time.
  * Hover still wins on the pointed cell.
+ *
+ * Rendering is a single <canvas>: the static lattice is cached on an
+ * offscreen canvas and blitted per frame, then only the active cells
+ * (wave band / trail / hover) are painted on top. All animation state
+ * lives in refs — no React re-renders per tick, no per-cell DOM.
  */
 export interface InteractiveGridPatternProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
@@ -54,13 +58,19 @@ export interface InteractiveGridPatternProps
 
 const HOVER_FILL = "rgba(237, 28, 36, 0.22)";
 const HOVER_STROKE = "rgba(237, 28, 36, 0.45)";
+/** Lattice stroke when `squaresClassName` doesn't resolve (stroke-gray-400/40). */
+const DEFAULT_LATTICE_STROKE = "rgba(156, 163, 175, 0.4)";
 
 /** How many cell-steps deep the wash runs behind the crest. */
 const WAVE_BAND = 8;
+/** Shoreline warp can push the band this many extra rows either way. */
+const WARP_MARGIN = 7;
 /** Chunky intensity ladder (pixel feel, not a smooth fade). */
 const INTENSITY_STEPS = 5;
 /** Default cursor-trail lifetime. */
 const DEFAULT_TRAIL_MS = 850;
+/** Debounced resize re-measure (ResizeObserver storms are real — see sidebar jank). */
+const RESIZE_DEBOUNCE_MS = 150;
 /**
  * Repeating spawn plan for “should this lead wave get a follower?”
  * Feels varied without true randomness — never 3, never always-double.
@@ -123,20 +133,6 @@ function crestIntensity(
   return Math.round(raw * INTENSITY_STEPS) / INTENSITY_STEPS;
 }
 
-/** Max intensity across up to two concurrent crests. */
-function waveIntensity(
-  col: number,
-  row: number,
-  crests: readonly WaveCrest[],
-): number {
-  let max = 0;
-  for (const crest of crests) {
-    const i = crestIntensity(col, row, crest.front, crest.seed);
-    if (i > max) max = i;
-  }
-  return max;
-}
-
 function redFromIntensity(intensity: number): { fill: string; stroke?: string } {
   if (intensity <= 0) return { fill: "transparent" };
   const fillA = 0.05 + intensity * 0.3;
@@ -188,6 +184,20 @@ function stampLine(
   }
 }
 
+/** Geometry derived from the measured clip box. */
+interface GridGeometry {
+  size: number;
+  cols: number;
+  rows: number;
+  gridW: number;
+  gridH: number;
+  offsetLeft: number;
+  offsetTop: number;
+  boxW: number;
+  boxH: number;
+  dpr: number;
+}
+
 export function InteractiveGridPattern({
   cellSize,
   width = 40,
@@ -206,33 +216,25 @@ export function InteractiveGridPattern({
 
   const size = Math.max(8, cellSize ?? Math.min(width, height));
   const clipRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const probeRef = useRef<SVGSVGElement>(null);
+
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  // ---- Animation state: refs only, no React re-renders per frame. ----
+  const geomRef = useRef<GridGeometry | null>(null);
+  const latticeRef = useRef<HTMLCanvasElement | null>(null);
+  const latticeStrokeRef = useRef<string>(DEFAULT_LATTICE_STROKE);
+  const crestsRef = useRef<WaveCrest[]>([]);
+  const hoveredRef = useRef<number | null>(null);
   const trailRef = useRef<Map<number, number>>(new Map());
   const lastCellRef = useRef<{ col: number; row: number } | null>(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
-  const [hovered, setHovered] = useState<number | null>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  /** Active crests (0–2): progress along grid rows. */
-  const [waveFronts, setWaveFronts] = useState<WaveCrest[]>([]);
-  /** Wall-clock stamp so trail decay re-renders while fading. */
-  const [trailNow, setTrailNow] = useState(0);
+  const dirtyRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
 
   const fadeMs = Math.max(200, trailMs);
   const trailActive = trail && !reduceMotion;
-
-  useEffect(() => {
-    const el = clipRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      setBox({ w: Math.max(0, r.width), h: Math.max(0, r.height) });
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const skewTan = Math.tan((skewY * Math.PI) / 180);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -242,127 +244,343 @@ export function InteractiveGridPattern({
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Decay trail on a chunky interval (matches quantized intensity steps).
+  // Measure, build geometry + cached lattice, and run the draw loop.
+  useEffect(() => {
+    const clip = clipRef.current;
+    const canvas = canvasRef.current;
+    if (!clip || !canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const readLatticeStroke = () => {
+      const probe = probeRef.current;
+      if (!probe) return;
+      const rect = probe.querySelector("rect");
+      if (!rect) return;
+      const stroke = getComputedStyle(rect).stroke;
+      if (stroke && stroke !== "none") latticeStrokeRef.current = stroke;
+    };
+
+    const buildGeometry = (): GridGeometry | null => {
+      const r = clip.getBoundingClientRect();
+      const boxW = Math.max(0, r.width);
+      const boxH = Math.max(0, r.height);
+      if (boxW === 0 || boxH === 0) return null;
+
+      const skewTanAbs = Math.abs(skewTan);
+      const padX = skewY === 0 ? 1 : Math.ceil((boxH * skewTanAbs) / size) + 2;
+      const padY = skewY === 0 ? 1 : Math.ceil((boxW * skewTanAbs) / size) + 2;
+      const cols = Math.ceil(boxW / size) + padX * 2;
+      const rows = Math.ceil(boxH / size) + padY * 2;
+      const gridW = cols * size;
+      const gridH = rows * size;
+      return {
+        size,
+        cols,
+        rows,
+        gridW,
+        gridH,
+        offsetLeft: (boxW - gridW) / 2,
+        offsetTop: (boxH - gridH) / 2,
+        boxW,
+        boxH,
+        dpr: Math.min(2, window.devicePixelRatio || 1),
+      };
+    };
+
+    /**
+     * Apply the shared paint transform: DPR scale, layer offset, then
+     * skewY about the layer center — the same model hit-testing inverts.
+     */
+    const applyTransform = (target: CanvasRenderingContext2D, geom: GridGeometry) => {
+      target.setTransform(geom.dpr, 0, 0, geom.dpr, 0, 0);
+      target.translate(geom.offsetLeft, geom.offsetTop);
+      if (skewY !== 0) {
+        target.translate(geom.gridW / 2, geom.gridH / 2);
+        target.transform(1, skewTan, 0, 1, 0, 0);
+        target.translate(-geom.gridW / 2, -geom.gridH / 2);
+      }
+    };
+
+    /** Render the static lattice once into an offscreen canvas. */
+    const buildLattice = (geom: GridGeometry) => {
+      const off = latticeRef.current ?? document.createElement("canvas");
+      latticeRef.current = off;
+      off.width = Math.max(1, Math.round(geom.boxW * geom.dpr));
+      off.height = Math.max(1, Math.round(geom.boxH * geom.dpr));
+      const offCtx = off.getContext("2d");
+      if (!offCtx) return;
+
+      offCtx.clearRect(0, 0, off.width, off.height);
+      applyTransform(offCtx, geom);
+      offCtx.strokeStyle = latticeStrokeRef.current;
+      offCtx.lineWidth = 1;
+      offCtx.beginPath();
+      for (let c = 0; c <= geom.cols; c += 1) {
+        offCtx.moveTo(c * geom.size, 0);
+        offCtx.lineTo(c * geom.size, geom.gridH);
+      }
+      for (let r = 0; r <= geom.rows; r += 1) {
+        offCtx.moveTo(0, r * geom.size);
+        offCtx.lineTo(geom.gridW, r * geom.size);
+      }
+      offCtx.stroke();
+      offCtx.setTransform(1, 0, 0, 1, 0, 0);
+    };
+
+    const measure = () => {
+      readLatticeStroke();
+      const geom = buildGeometry();
+      geomRef.current = geom;
+      if (!geom) return;
+      canvas.width = Math.max(1, Math.round(geom.boxW * geom.dpr));
+      canvas.height = Math.max(1, Math.round(geom.boxH * geom.dpr));
+      canvas.style.width = `${geom.boxW}px`;
+      canvas.style.height = `${geom.boxH}px`;
+      buildLattice(geom);
+      dirtyRef.current = true;
+    };
+
+    const paintCell = (
+      geom: GridGeometry,
+      col: number,
+      row: number,
+      fill: string,
+      stroke?: string,
+    ) => {
+      const x = col * geom.size;
+      const y = row * geom.size;
+      if (fill !== "transparent") {
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, geom.size, geom.size);
+      }
+      if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, geom.size, geom.size);
+      }
+    };
+
+    const draw = () => {
+      const geom = geomRef.current;
+      if (!geom) return;
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const lattice = latticeRef.current;
+      if (lattice) ctx.drawImage(lattice, 0, 0);
+
+      applyTransform(ctx, geom);
+
+      const now = performance.now();
+      const crests = crestsRef.current;
+      const hovered = hoveredRef.current;
+
+      // Gather active-cell intensities (max wins), then paint each cell once.
+      const active = new Map<number, number>();
+
+      // Wave: only rows the band (plus shoreline warp) can reach.
+      for (const crest of crests) {
+        const rowStart = Math.max(0, Math.floor(crest.front - WAVE_BAND - WARP_MARGIN));
+        const rowEnd = Math.min(geom.rows - 1, Math.ceil(crest.front + WARP_MARGIN));
+        for (let row = rowStart; row <= rowEnd; row += 1) {
+          for (let col = 0; col < geom.cols; col += 1) {
+            const intensity = crestIntensity(col, row, crest.front, crest.seed);
+            if (intensity <= 0) continue;
+            const index = row * geom.cols + col;
+            const prev = active.get(index);
+            if (prev == null || intensity > prev) active.set(index, intensity);
+          }
+        }
+      }
+
+      // Trail: only visited cells.
+      if (trailActive) {
+        for (const [index, litAt] of trailRef.current) {
+          const intensity = trailIntensityAt(litAt, now, fadeMs);
+          if (intensity <= 0) continue;
+          const prev = active.get(index);
+          if (prev == null || intensity > prev) active.set(index, intensity);
+        }
+      }
+
+      for (const [index, intensity] of active) {
+        if (index === hovered) continue;
+        const paint = redFromIntensity(intensity);
+        paintCell(geom, index % geom.cols, Math.floor(index / geom.cols), paint.fill, paint.stroke);
+      }
+
+      if (hovered != null) {
+        const col = hovered % geom.cols;
+        const row = Math.floor(hovered / geom.cols);
+        paintCell(geom, col, row, HOVER_FILL, HOVER_STROKE);
+      }
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    };
+
+    // rAF stops on its own while the document is hidden, so the draw loop
+    // only gates on the dirty flag — visibility gating lives in the wave
+    // stepper. Gating draws on visibility too can miss the first frame
+    // after re-show and leave a cleared canvas blank.
+    const loop = () => {
+      rafRef.current = requestAnimationFrame(loop);
+      if (!dirtyRef.current) return;
+      dirtyRef.current = false;
+      draw();
+    };
+
+    measure();
+    rafRef.current = requestAnimationFrame(loop);
+
+    let resizeTimer = 0;
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(measure, RESIZE_DEBOUNCE_MS);
+    });
+    ro.observe(clip);
+
+    const onVisibility = () => {
+      if (!document.hidden) dirtyRef.current = true;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      window.clearTimeout(resizeTimer);
+      ro.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [size, skewY, skewTan, trailActive, fadeMs]);
+
+  // Trail decay on a chunky interval (matches quantized intensity steps).
   useEffect(() => {
     if (!trailActive) {
       trailRef.current.clear();
       lastCellRef.current = null;
-      setTrailNow(0);
       return;
     }
 
     const id = window.setInterval(() => {
-      const now = performance.now();
       const map = trailRef.current;
       if (map.size === 0) return;
+      const now = performance.now();
       for (const [index, litAt] of map) {
         if (now - litAt >= fadeMs) map.delete(index);
       }
-      setTrailNow(now);
+      dirtyRef.current = true;
     }, 55);
 
     return () => window.clearInterval(id);
   }, [trailActive, fadeMs]);
 
-  const skewTan = Math.tan((skewY * Math.PI) / 180);
-  const skewTanAbs = Math.abs(skewTan);
-  const padX = skewY === 0 ? 1 : Math.ceil((box.h * skewTanAbs) / size) + 2;
-  const padY = skewY === 0 ? 1 : Math.ceil((box.w * skewTanAbs) / size) + 2;
-  const cols = box.w > 0 ? Math.ceil(box.w / size) + padX * 2 : 0;
-  const rows = box.h > 0 ? Math.ceil(box.h / size) + padY * 2 : 0;
-  const gridW = cols * size;
-  const gridH = rows * size;
-  const offsetLeft = (box.w - gridW) / 2;
-  const offsetTop = (box.h - gridH) / 2;
-  const waveActive = wave && !reduceMotion && cols > 0 && rows > 0;
-  // Travel along rows only — crest stays mesh-horizontal under skewY.
-  const travelSpan = rows;
+  const waveActive = wave && !reduceMotion;
 
   // Step crests one cell at a time; occasionally run a second spaced wave.
   useEffect(() => {
-    if (!waveActive || travelSpan <= 0) {
-      setWaveFronts([]);
+    if (!waveActive) {
+      crestsRef.current = [];
+      dirtyRef.current = true;
       return;
     }
 
-    const durationMs = Math.max(2, waveDuration) * 1000;
-    // Extra steps so the thick wash + shoreline warp can clear the grid.
-    const sweepEnd = travelSpan + WAVE_BAND + 4;
-    // Keep crests apart so dual waves read as two, not one blob.
-    const minSeparation = Math.max(
-      WAVE_BAND + 5,
-      Math.min(14, Math.floor(travelSpan * 0.28)),
-    );
-    // Start the next lead before the previous fully clears — shortens the
-    // empty beat in the masked center without speeding up the crest itself.
-    const handoffAt = Math.max(
-      minSeparation + 3,
-      Math.floor(travelSpan * 0.58),
-    );
-    const stepMs = Math.max(85, durationMs / sweepEnd);
+    let intervalId = 0;
+    let cancelled = false;
 
-    let episode = 0;
-    let followArmed = FOLLOW_PATTERN[0] === 1;
-    const spawn = (ep: number): WaveCrest => ({
-      front: 0,
-      seed: seedForEpisode(ep),
-    });
-    episode = 1;
-    setWaveFronts([spawn(0)]);
+    // Geometry is measured asynchronously; wait for it before spawning.
+    const start = () => {
+      if (cancelled) return;
+      const geom = geomRef.current;
+      if (!geom || geom.rows <= 0) {
+        window.setTimeout(start, 100);
+        return;
+      }
 
-    const id = window.setInterval(() => {
-      setWaveFronts((prev) => {
-        const advanced = prev
+      const travelSpan = geom.rows;
+      const durationMs = Math.max(2, waveDuration) * 1000;
+      // Extra steps so the thick wash + shoreline warp can clear the grid.
+      const sweepEnd = travelSpan + WAVE_BAND + 4;
+      // Keep crests apart so dual waves read as two, not one blob.
+      const minSeparation = Math.max(
+        WAVE_BAND + 5,
+        Math.min(14, Math.floor(travelSpan * 0.28)),
+      );
+      // Start the next lead before the previous fully clears — shortens the
+      // empty beat in the masked center without speeding up the crest itself.
+      const handoffAt = Math.max(
+        minSeparation + 3,
+        Math.floor(travelSpan * 0.58),
+      );
+      const stepMs = Math.max(85, durationMs / sweepEnd);
+
+      let episode = 0;
+      let followArmed = FOLLOW_PATTERN[0] === 1;
+      const spawn = (ep: number): WaveCrest => ({
+        front: 0,
+        seed: seedForEpisode(ep),
+      });
+      episode = 1;
+      crestsRef.current = [spawn(0)];
+      dirtyRef.current = true;
+
+      intervalId = window.setInterval(() => {
+        // Skip stepping entirely while hidden — resume where left off.
+        if (document.hidden) return;
+
+        const advanced = crestsRef.current
           .map((crest) => ({ ...crest, front: crest.front + 1 }))
           .filter((crest) => crest.front < sweepEnd);
 
-        // Safety net if everything somehow cleared.
         if (advanced.length === 0) {
-          followArmed =
-            FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
-          const next = spawn(episode);
+          // Safety net if everything somehow cleared.
+          followArmed = FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
+          crestsRef.current = [spawn(episode)];
           episode += 1;
-          return [next];
-        }
-
-        if (advanced.length === 1) {
+        } else if (advanced.length === 1) {
           const lead = advanced[0]!;
 
-          // Intentional double — earlier follower (own shoreline seed).
           if (followArmed && lead.front >= minSeparation) {
+            // Intentional double — earlier follower (own shoreline seed).
             followArmed = false;
             const follower = spawn(episode);
             episode += 1;
-            return [lead, follower];
-          }
-
-          // Solo handoff — next crest enters before the wash empties the view.
-          if (!followArmed && lead.front >= handoffAt) {
-            followArmed =
-              FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
+            crestsRef.current = [lead, follower];
+          } else if (!followArmed && lead.front >= handoffAt) {
+            // Solo handoff — next crest enters before the wash empties the view.
+            followArmed = FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
             const next = spawn(episode);
             episode += 1;
-            return [lead, next];
+            crestsRef.current = [lead, next];
+          } else {
+            crestsRef.current = advanced;
           }
+        } else {
+          crestsRef.current = advanced;
         }
 
-        return advanced;
-      });
-    }, stepMs);
+        dirtyRef.current = true;
+      }, stepMs);
+    };
 
-    return () => window.clearInterval(id);
-  }, [waveActive, travelSpan, waveDuration]);
+    start();
 
-  const skewTransform =
-    skewY !== 0
-      ? `translate(${gridW / 2} ${gridH / 2}) skewY(${skewY}) translate(${-gridW / 2} ${-gridH / 2})`
-      : undefined;
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [waveActive, waveDuration, size, skewY]);
 
+  // Pointer → cell via the inverse of the paint transform.
   useEffect(() => {
     const clip = clipRef.current;
-    if (!clip || cols === 0 || rows === 0) return;
+    if (!clip) return;
 
     const onMove = (event: PointerEvent) => {
+      const geom = geomRef.current;
+      if (!geom) return;
+
       const bounds = clip.getBoundingClientRect();
       if (
         event.clientX < bounds.left ||
@@ -370,17 +588,18 @@ export function InteractiveGridPattern({
         event.clientY < bounds.top ||
         event.clientY > bounds.bottom
       ) {
-        setHovered(null);
+        if (hoveredRef.current != null) dirtyRef.current = true;
+        hoveredRef.current = null;
         lastCellRef.current = null;
         return;
       }
 
-      // Layer center in viewport pixels (matches SVG skew-about-center).
-      const cx = bounds.left + offsetLeft + gridW / 2;
-      const cy = bounds.top + offsetTop + gridH / 2;
+      // Layer center in viewport pixels (matches skew-about-center).
+      const cx = bounds.left + geom.offsetLeft + geom.gridW / 2;
+      const cy = bounds.top + geom.offsetTop + geom.gridH / 2;
 
       // Screen → centered coords
-      let x = event.clientX - cx;
+      const x = event.clientX - cx;
       let y = event.clientY - cy;
 
       // Inverse skewY about center: forward (x, y) → (x, y + x·tanθ)
@@ -389,35 +608,38 @@ export function InteractiveGridPattern({
       }
 
       // Centered → grid local
-      const localX = x + gridW / 2;
-      const localY = y + gridH / 2;
+      const localX = x + geom.gridW / 2;
+      const localY = y + geom.gridH / 2;
 
-      if (localX < 0 || localY < 0 || localX >= gridW || localY >= gridH) {
-        setHovered(null);
+      if (localX < 0 || localY < 0 || localX >= geom.gridW || localY >= geom.gridH) {
+        if (hoveredRef.current != null) dirtyRef.current = true;
+        hoveredRef.current = null;
         lastCellRef.current = null;
         return;
       }
 
-      const col = Math.min(cols - 1, Math.max(0, Math.floor(localX / size)));
-      const row = Math.min(rows - 1, Math.max(0, Math.floor(localY / size)));
-      const index = row * cols + col;
-      setHovered(index);
+      const col = Math.min(geom.cols - 1, Math.max(0, Math.floor(localX / geom.size)));
+      const row = Math.min(geom.rows - 1, Math.max(0, Math.floor(localY / geom.size)));
+      const index = row * geom.cols + col;
+      if (hoveredRef.current !== index) dirtyRef.current = true;
+      hoveredRef.current = index;
 
       if (trailActive) {
         const now = performance.now();
         const prev = lastCellRef.current;
         if (prev && (prev.col !== col || prev.row !== row)) {
-          stampLine(trailRef.current, cols, prev.col, prev.row, col, row, now);
+          stampLine(trailRef.current, geom.cols, prev.col, prev.row, col, row, now);
         } else {
           trailRef.current.set(index, now);
         }
         lastCellRef.current = { col, row };
-        setTrailNow(now);
+        dirtyRef.current = true;
       }
     };
 
     const clear = () => {
-      setHovered(null);
+      if (hoveredRef.current != null) dirtyRef.current = true;
+      hoveredRef.current = null;
       lastCellRef.current = null;
     };
 
@@ -430,18 +652,7 @@ export function InteractiveGridPattern({
       window.removeEventListener("blur", clear);
       document.documentElement.removeEventListener("mouseleave", clear);
     };
-  }, [
-    cols,
-    rows,
-    size,
-    gridW,
-    gridH,
-    offsetLeft,
-    offsetTop,
-    skewY,
-    skewTan,
-    trailActive,
-  ]);
+  }, [skewY, skewTan, trailActive]);
 
   return (
     <div
@@ -450,53 +661,11 @@ export function InteractiveGridPattern({
       className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}
       {...props}
     >
-      {cols > 0 && rows > 0 ? (
-        <svg
-          width={gridW}
-          height={gridH}
-          style={{
-            position: "absolute",
-            left: offsetLeft,
-            top: offsetTop,
-            width: gridW,
-            height: gridH,
-            overflow: "visible",
-          }}
-        >
-          <g transform={skewTransform}>
-            {Array.from({ length: cols * rows }, (_, index) => {
-              const col = index % cols;
-              const row = Math.floor(index / cols);
-              const x = col * size;
-              const y = row * size;
-              const active = hovered === index;
-              const waveI = waveActive ? waveIntensity(col, row, waveFronts) : 0;
-              const trailI = trailActive
-                ? trailIntensityAt(trailRef.current.get(index), trailNow || performance.now(), fadeMs)
-                : 0;
-              const intensity = Math.max(waveI, trailI);
-              const paint = redFromIntensity(intensity);
-
-              return (
-                <rect
-                  key={index}
-                  x={x}
-                  y={y}
-                  width={size}
-                  height={size}
-                  className={cn(
-                    "stroke-gray-400/40",
-                    !waveActive && !trailActive && "transition-[fill,stroke] duration-100 ease-out",
-                    squaresClassName,
-                  )}
-                  fill={active ? HOVER_FILL : paint.fill}
-                  stroke={active ? HOVER_STROKE : paint.stroke}
-                />
-              );
-            })}
-          </g>
-        </svg>
-      ) : null}
+      {/* Hidden probe: resolves the Tailwind stroke class to a color for canvas. */}
+      <svg ref={probeRef} width={0} height={0} style={{ position: "absolute" }} aria-hidden>
+        <rect className={cn("stroke-gray-400/40", squaresClassName)} />
+      </svg>
+      <canvas ref={canvasRef} style={{ position: "absolute", left: 0, top: 0 }} />
     </div>
   );
 }
