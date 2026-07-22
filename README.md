@@ -35,8 +35,8 @@ import {
   AnimatedSpan,
 } from "@promexma/ui";
 
-// Login / hero backdrop with ambient red wave + cursor highlight
-<InteractiveGridPattern cellSize={40} skewY={6} wave />
+// Login / hero backdrop with ambient red wave, cursor trail, + hover
+<InteractiveGridPattern cellSize={40} wave trail />
 ```
 
 ## Develop

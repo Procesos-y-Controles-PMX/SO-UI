@@ -16,7 +16,8 @@ import { cn } from "./lib/cn";
  *
  * Optional `wave`: thick irregular beach bands roll nearly horizontally
  * (sometimes two, never more, never too close) with quantized intensity.
- * Cursor hover still wins on the pointed cell.
+ * Optional `trail`: cursor path lights cells that fade out over time.
+ * Hover still wins on the pointed cell.
  */
 export interface InteractiveGridPatternProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
@@ -42,6 +43,13 @@ export interface InteractiveGridPatternProps
   wave?: boolean;
   /** Full wave sweep length in seconds. @default 5 */
   waveDuration?: number;
+  /**
+   * Cursor trail: visited cells light up and fade out over time.
+   * @default false
+   */
+  trail?: boolean;
+  /** Trail fade length in milliseconds. @default 850 */
+  trailMs?: number;
 }
 
 const HOVER_FILL = "rgba(237, 28, 36, 0.22)";
@@ -51,6 +59,8 @@ const HOVER_STROKE = "rgba(237, 28, 36, 0.45)";
 const WAVE_BAND = 8;
 /** Chunky intensity ladder (pixel feel, not a smooth fade). */
 const INTENSITY_STEPS = 5;
+/** Default cursor-trail lifetime. */
+const DEFAULT_TRAIL_MS = 850;
 /**
  * Repeating spawn plan for “should this lead wave get a follower?”
  * Feels varied without true randomness — never 3, never always-double.
@@ -145,6 +155,47 @@ function redFromIntensity(intensity: number): { fill: string; stroke?: string } 
   };
 }
 
+/** Quantized trail strength from age since last visit. */
+function trailIntensityAt(litAt: number | undefined, now: number, trailMs: number): number {
+  if (litAt == null) return 0;
+  const t = 1 - (now - litAt) / trailMs;
+  if (t <= 0) return 0;
+  return Math.round(t * INTENSITY_STEPS) / INTENSITY_STEPS;
+}
+
+/** Bresenham line in grid space so fast moves don’t skip cells. */
+function stampLine(
+  trail: Map<number, number>,
+  cols: number,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+  now: number,
+) {
+  let x = c0;
+  let y = r0;
+  const dx = Math.abs(c1 - c0);
+  const dy = Math.abs(r1 - r0);
+  const sx = c0 < c1 ? 1 : -1;
+  const sy = r0 < r1 ? 1 : -1;
+  let err = dx - dy;
+
+  for (;;) {
+    trail.set(y * cols + x, now);
+    if (x === c1 && y === r1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
+
 export function InteractiveGridPattern({
   cellSize,
   width = 40,
@@ -155,17 +206,26 @@ export function InteractiveGridPattern({
   skewY = 0,
   wave = false,
   waveDuration = 5,
+  trail = false,
+  trailMs = DEFAULT_TRAIL_MS,
   ...props
 }: InteractiveGridPatternProps) {
   void _squares;
 
   const size = Math.max(8, cellSize ?? Math.min(width, height));
   const clipRef = useRef<HTMLDivElement>(null);
+  const trailRef = useRef<Map<number, number>>(new Map());
+  const lastCellRef = useRef<{ col: number; row: number } | null>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [hovered, setHovered] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
   /** Active crests (0–2): progress + slight crest slope. */
   const [waveFronts, setWaveFronts] = useState<WaveCrest[]>([]);
+  /** Wall-clock stamp so trail decay re-renders while fading. */
+  const [trailNow, setTrailNow] = useState(0);
+
+  const fadeMs = Math.max(200, trailMs);
+  const trailActive = trail && !reduceMotion;
 
   useEffect(() => {
     const el = clipRef.current;
@@ -189,6 +249,28 @@ export function InteractiveGridPattern({
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  // Decay trail on a chunky interval (matches quantized intensity steps).
+  useEffect(() => {
+    if (!trailActive) {
+      trailRef.current.clear();
+      lastCellRef.current = null;
+      setTrailNow(0);
+      return;
+    }
+
+    const id = window.setInterval(() => {
+      const now = performance.now();
+      const map = trailRef.current;
+      if (map.size === 0) return;
+      for (const [index, litAt] of map) {
+        if (now - litAt >= fadeMs) map.delete(index);
+      }
+      setTrailNow(now);
+    }, 55);
+
+    return () => window.clearInterval(id);
+  }, [trailActive, fadeMs]);
 
   const skewTan = Math.tan((skewY * Math.PI) / 180);
   const skewTanAbs = Math.abs(skewTan);
@@ -297,6 +379,7 @@ export function InteractiveGridPattern({
         event.clientY > bounds.bottom
       ) {
         setHovered(null);
+        lastCellRef.current = null;
         return;
       }
 
@@ -319,15 +402,32 @@ export function InteractiveGridPattern({
 
       if (localX < 0 || localY < 0 || localX >= gridW || localY >= gridH) {
         setHovered(null);
+        lastCellRef.current = null;
         return;
       }
 
       const col = Math.min(cols - 1, Math.max(0, Math.floor(localX / size)));
       const row = Math.min(rows - 1, Math.max(0, Math.floor(localY / size)));
-      setHovered(row * cols + col);
+      const index = row * cols + col;
+      setHovered(index);
+
+      if (trailActive) {
+        const now = performance.now();
+        const prev = lastCellRef.current;
+        if (prev && (prev.col !== col || prev.row !== row)) {
+          stampLine(trailRef.current, cols, prev.col, prev.row, col, row, now);
+        } else {
+          trailRef.current.set(index, now);
+        }
+        lastCellRef.current = { col, row };
+        setTrailNow(now);
+      }
     };
 
-    const clear = () => setHovered(null);
+    const clear = () => {
+      setHovered(null);
+      lastCellRef.current = null;
+    };
 
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("blur", clear);
@@ -338,7 +438,18 @@ export function InteractiveGridPattern({
       window.removeEventListener("blur", clear);
       document.documentElement.removeEventListener("mouseleave", clear);
     };
-  }, [cols, rows, size, gridW, gridH, offsetLeft, offsetTop, skewY, skewTan]);
+  }, [
+    cols,
+    rows,
+    size,
+    gridW,
+    gridH,
+    offsetLeft,
+    offsetTop,
+    skewY,
+    skewTan,
+    trailActive,
+  ]);
 
   return (
     <div
@@ -367,8 +478,12 @@ export function InteractiveGridPattern({
               const x = col * size;
               const y = row * size;
               const active = hovered === index;
-              const intensity = waveActive ? waveIntensity(col, row, waveFronts) : 0;
-              const wavePaint = redFromIntensity(intensity);
+              const waveI = waveActive ? waveIntensity(col, row, waveFronts) : 0;
+              const trailI = trailActive
+                ? trailIntensityAt(trailRef.current.get(index), trailNow || performance.now(), fadeMs)
+                : 0;
+              const intensity = Math.max(waveI, trailI);
+              const paint = redFromIntensity(intensity);
 
               return (
                 <rect
@@ -379,11 +494,11 @@ export function InteractiveGridPattern({
                   height={size}
                   className={cn(
                     "stroke-gray-400/40",
-                    !waveActive && "transition-[fill,stroke] duration-100 ease-out",
+                    !waveActive && !trailActive && "transition-[fill,stroke] duration-100 ease-out",
                     squaresClassName,
                   )}
-                  fill={active ? HOVER_FILL : wavePaint.fill}
-                  stroke={active ? HOVER_STROKE : wavePaint.stroke}
+                  fill={active ? HOVER_FILL : paint.fill}
+                  stroke={active ? HOVER_STROKE : paint.stroke}
                 />
               );
             })}
