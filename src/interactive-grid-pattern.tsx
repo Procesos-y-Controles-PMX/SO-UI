@@ -16,6 +16,8 @@ import { cn } from "./lib/cn";
  * Optional `wave`: thick irregular beach bands roll along grid rows
  * (mesh-horizontal under skew; sometimes two, never more) with quantized intensity.
  * Optional `trail`: cursor path lights cells that fade out over time.
+ * Optional `spinner`: programmatic orbit that stamps the same trail fade —
+ * a loading “comet” made of grid cells (no CSS ring).
  * Hover still wins on the pointed cell.
  *
  * Rendering is a single <canvas>: the static lattice is cached on an
@@ -57,8 +59,23 @@ export interface InteractiveGridPatternProps
    * @default false
    */
   trail?: boolean;
-  /** Trail fade length in milliseconds. @default 850 */
+  /** Trail fade length in milliseconds (also used by `spinner`). @default 850 */
   trailMs?: number;
+  /**
+   * Orbiting cell trail — loading spinner made from the mesh itself.
+   * Uses the same quantized red fade as cursor trail. @default false
+   */
+  spinner?: boolean;
+  /** One full revolution in milliseconds. @default 1400 */
+  spinnerMs?: number;
+  /** Orbit radius in cells. @default 4 */
+  spinnerRadius?: number;
+  /**
+   * Orbit center as fractions of the grid (0–1).
+   * Default slightly above mid so a caption can sit under the ring.
+   * @default [0.5, 0.42]
+   */
+  spinnerOrigin?: [number, number];
 }
 
 const HOVER_FILL = "rgba(237, 28, 36, 0.22)";
@@ -74,6 +91,10 @@ const WARP_MARGIN = 7;
 const INTENSITY_STEPS = 5;
 /** Default cursor-trail lifetime. */
 const DEFAULT_TRAIL_MS = 850;
+/** Default spinner revolution. */
+const DEFAULT_SPINNER_MS = 1400;
+/** Default orbit radius in cells. */
+const DEFAULT_SPINNER_RADIUS = 4;
 /** Debounced resize re-measure (ResizeObserver storms are real — see sidebar jank). */
 const RESIZE_DEBOUNCE_MS = 150;
 /**
@@ -216,6 +237,10 @@ export function InteractiveGridPattern({
   waveGap = 0,
   trail = false,
   trailMs = DEFAULT_TRAIL_MS,
+  spinner = false,
+  spinnerMs = DEFAULT_SPINNER_MS,
+  spinnerRadius = DEFAULT_SPINNER_RADIUS,
+  spinnerOrigin = [0.5, 0.42],
   ...props
 }: InteractiveGridPatternProps) {
   void _squares;
@@ -235,11 +260,21 @@ export function InteractiveGridPattern({
   const hoveredRef = useRef<number | null>(null);
   const trailRef = useRef<Map<number, number>>(new Map());
   const lastCellRef = useRef<{ col: number; row: number } | null>(null);
+  const spinnerLastRef = useRef<{ col: number; row: number } | null>(null);
   const dirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
   const fadeMs = Math.max(200, trailMs);
-  const trailActive = trail && !reduceMotion;
+  const revMs = Math.max(400, spinnerMs);
+  const orbitR = Math.max(1.5, spinnerRadius);
+  const originX = Math.min(1, Math.max(0, spinnerOrigin[0] ?? 0.5));
+  const originY = Math.min(1, Math.max(0, spinnerOrigin[1] ?? 0.42));
+  const cursorTrailActive = trail && !reduceMotion;
+  const spinnerActive = spinner && !reduceMotion;
+  /** Paint trail cells whenever cursor trail or spinner (incl. reduced-motion static). */
+  const trailPaintActive = cursorTrailActive || Boolean(spinner);
+  /** Age-out only while something is actively stamping. */
+  const trailDecayActive = cursorTrailActive || spinnerActive;
   const skewTan = Math.tan((skewY * Math.PI) / 180);
 
   useEffect(() => {
@@ -401,8 +436,8 @@ export function InteractiveGridPattern({
         }
       }
 
-      // Trail: only visited cells.
-      if (trailActive) {
+      // Trail: cursor path and/or spinner orbit.
+      if (trailPaintActive) {
         for (const [index, litAt] of trailRef.current) {
           const intensity = trailIntensityAt(litAt, now, fadeMs);
           if (intensity <= 0) continue;
@@ -459,13 +494,16 @@ export function InteractiveGridPattern({
       ro.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [size, skewY, skewTan, trailActive, fadeMs]);
+  }, [size, skewY, skewTan, trailPaintActive, fadeMs]);
 
   // Trail decay on a chunky interval (matches quantized intensity steps).
   useEffect(() => {
-    if (!trailActive) {
-      trailRef.current.clear();
-      lastCellRef.current = null;
+    if (!trailDecayActive) {
+      if (!spinner) {
+        trailRef.current.clear();
+        lastCellRef.current = null;
+        spinnerLastRef.current = null;
+      }
       return;
     }
 
@@ -480,7 +518,90 @@ export function InteractiveGridPattern({
     }, 55);
 
     return () => window.clearInterval(id);
-  }, [trailActive, fadeMs]);
+  }, [trailDecayActive, fadeMs, spinner]);
+
+  // Programmatic orbit — stamps the same trail map the cursor uses.
+  useEffect(() => {
+    if (!spinnerActive) {
+      spinnerLastRef.current = null;
+      return;
+    }
+
+    let raf = 0;
+    let cancelled = false;
+    const startedAt = performance.now();
+
+    const tick = (now: number) => {
+      if (cancelled) return;
+      raf = requestAnimationFrame(tick);
+
+      const geom = geomRef.current;
+      if (!geom || geom.cols < 3 || geom.rows < 3) return;
+
+      const t = ((now - startedAt) % revMs) / revMs;
+      // Start at top; travel clockwise in grid space.
+      const angle = t * Math.PI * 2 - Math.PI / 2;
+      const cx = originX * (geom.cols - 1);
+      const cy = originY * (geom.rows - 1);
+      const col = Math.min(
+        geom.cols - 1,
+        Math.max(0, Math.round(cx + Math.cos(angle) * orbitR)),
+      );
+      const row = Math.min(
+        geom.rows - 1,
+        Math.max(0, Math.round(cy + Math.sin(angle) * orbitR)),
+      );
+
+      const prev = spinnerLastRef.current;
+      if (prev && (prev.col !== col || prev.row !== row)) {
+        stampLine(trailRef.current, geom.cols, prev.col, prev.row, col, row, now);
+      } else {
+        trailRef.current.set(row * geom.cols + col, now);
+      }
+      spinnerLastRef.current = { col, row };
+      dirtyRef.current = true;
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      spinnerLastRef.current = null;
+    };
+  }, [spinnerActive, revMs, orbitR, originX, originY]);
+
+  // Reduced-motion spinner: static arc so the state still reads as “loading”.
+  useEffect(() => {
+    if (!spinner || !reduceMotion) return;
+
+    const paintStatic = () => {
+      const geom = geomRef.current;
+      if (!geom || geom.cols < 3 || geom.rows < 3) {
+        window.setTimeout(paintStatic, 80);
+        return;
+      }
+      const now = performance.now();
+      const cx = originX * (geom.cols - 1);
+      const cy = originY * (geom.rows - 1);
+      trailRef.current.clear();
+      for (let i = 0; i < 5; i += 1) {
+        const angle = -Math.PI / 2 + (i / 8) * Math.PI * 2;
+        const col = Math.min(
+          geom.cols - 1,
+          Math.max(0, Math.round(cx + Math.cos(angle) * orbitR)),
+        );
+        const row = Math.min(
+          geom.rows - 1,
+          Math.max(0, Math.round(cy + Math.sin(angle) * orbitR)),
+        );
+        // Stagger ages so the arc still has a bright head.
+        trailRef.current.set(row * geom.cols + col, now - i * (fadeMs / 6));
+      }
+      dirtyRef.current = true;
+    };
+
+    paintStatic();
+  }, [spinner, reduceMotion, orbitR, originX, originY, fadeMs]);
 
   const waveActive = wave && !reduceMotion;
 
@@ -641,7 +762,7 @@ export function InteractiveGridPattern({
       if (hoveredRef.current !== index) dirtyRef.current = true;
       hoveredRef.current = index;
 
-      if (trailActive) {
+      if (cursorTrailActive) {
         const now = performance.now();
         const prev = lastCellRef.current;
         if (prev && (prev.col !== col || prev.row !== row)) {
@@ -669,7 +790,7 @@ export function InteractiveGridPattern({
       window.removeEventListener("blur", clear);
       document.documentElement.removeEventListener("mouseleave", clear);
     };
-  }, [skewY, skewTan, trailActive]);
+  }, [skewY, skewTan, cursorTrailActive]);
 
   return (
     <div
