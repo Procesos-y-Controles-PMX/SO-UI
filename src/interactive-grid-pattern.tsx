@@ -45,8 +45,13 @@ export interface InteractiveGridPatternProps
    * Hover still overrides the wave on the pointed cell. @default false
    */
   wave?: boolean;
-  /** Full wave sweep length in seconds. @default 5 */
+  /** Full wave sweep length in seconds (crest speed). @default 5 */
   waveDuration?: number;
+  /**
+   * Idle seconds after the mesh clears before the next wave starts.
+   * Higher = lower frequency; does not change crest speed. @default 0
+   */
+  waveGap?: number;
   /**
    * Cursor trail: visited cells light up and fade out over time.
    * @default false
@@ -208,6 +213,7 @@ export function InteractiveGridPattern({
   skewY = 0,
   wave = false,
   waveDuration = 5,
+  waveGap = 0,
   trail = false,
   trailMs = DEFAULT_TRAIL_MS,
   ...props
@@ -507,16 +513,19 @@ export function InteractiveGridPattern({
         WAVE_BAND + 5,
         Math.min(14, Math.floor(travelSpan * 0.28)),
       );
-      // Start the next lead before the previous fully clears — shortens the
-      // empty beat in the masked center without speeding up the crest itself.
+      // Early handoff only when there’s no idle gap (keeps Portal lively).
+      const gapMs = Math.max(0, waveGap) * 1000;
+      const earlyHandoff = gapMs <= 0;
       const handoffAt = Math.max(
         minSeparation + 3,
         Math.floor(travelSpan * 0.58),
       );
       const stepMs = Math.max(85, durationMs / sweepEnd);
+      const gapSteps = Math.ceil(gapMs / stepMs);
 
       let episode = 0;
       let followArmed = FOLLOW_PATTERN[0] === 1;
+      let idleLeft = 0;
       const spawn = (ep: number): WaveCrest => ({
         front: 0,
         seed: seedForEpisode(ep),
@@ -534,10 +543,18 @@ export function InteractiveGridPattern({
           .filter((crest) => crest.front < sweepEnd);
 
         if (advanced.length === 0) {
-          // Safety net if everything somehow cleared.
-          followArmed = FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
-          crestsRef.current = [spawn(episode)];
-          episode += 1;
+          if (idleLeft > 0) {
+            idleLeft -= 1;
+            crestsRef.current = [];
+          } else if (gapSteps > 0 && crestsRef.current.length > 0) {
+            // Just cleared — start the idle beat before the next spawn.
+            idleLeft = gapSteps;
+            crestsRef.current = [];
+          } else {
+            followArmed = FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
+            crestsRef.current = [spawn(episode)];
+            episode += 1;
+          }
         } else if (advanced.length === 1) {
           const lead = advanced[0]!;
 
@@ -547,7 +564,7 @@ export function InteractiveGridPattern({
             const follower = spawn(episode);
             episode += 1;
             crestsRef.current = [lead, follower];
-          } else if (!followArmed && lead.front >= handoffAt) {
+          } else if (earlyHandoff && !followArmed && lead.front >= handoffAt) {
             // Solo handoff — next crest enters before the wash empties the view.
             followArmed = FOLLOW_PATTERN[episode % FOLLOW_PATTERN.length] === 1;
             const next = spawn(episode);
@@ -570,7 +587,7 @@ export function InteractiveGridPattern({
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [waveActive, waveDuration, size, skewY]);
+  }, [waveActive, waveDuration, waveGap, size, skewY]);
 
   // Pointer → cell via the inverse of the paint transform.
   useEffect(() => {
