@@ -10,4 +10,6 @@ export {
 } from "./terminal";
 export { ThemeProvider } from "./theme/ThemeProvider";
 export { ThemeToggle } from "./theme/ThemeToggle";
+export { GridThemeToggle } from "./theme/GridThemeToggle";
+export type { GridThemeToggleProps } from "./theme/GridThemeToggle";
 export { cn } from "./lib/cn";
