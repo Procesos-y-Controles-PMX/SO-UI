@@ -269,6 +269,12 @@ export function InteractiveGridPattern({
   const orbitR = Math.max(1.5, spinnerRadius);
   const originX = Math.min(1, Math.max(0, spinnerOrigin[0] ?? 0.5));
   const originY = Math.min(1, Math.max(0, spinnerOrigin[1] ?? 0.42));
+  // Live origin via refs — prop updates must NOT restart the orbit RAF (that
+  // collapses the trail into a short line of cells).
+  const originXRef = useRef(originX);
+  const originYRef = useRef(originY);
+  originXRef.current = originX;
+  originYRef.current = originY;
   const cursorTrailActive = trail && !reduceMotion;
   const spinnerActive = spinner && !reduceMotion;
   /** Paint trail cells whenever cursor trail or spinner (incl. reduced-motion static). */
@@ -541,8 +547,8 @@ export function InteractiveGridPattern({
       const t = ((now - startedAt) % revMs) / revMs;
       // Start at top; travel clockwise in grid space.
       const angle = t * Math.PI * 2 - Math.PI / 2;
-      const cx = originX * (geom.cols - 1);
-      const cy = originY * (geom.rows - 1);
+      const cx = originXRef.current * (geom.cols - 1);
+      const cy = originYRef.current * (geom.rows - 1);
       const col = Math.min(
         geom.cols - 1,
         Math.max(0, Math.round(cx + Math.cos(angle) * orbitR)),
@@ -568,7 +574,7 @@ export function InteractiveGridPattern({
       cancelAnimationFrame(raf);
       spinnerLastRef.current = null;
     };
-  }, [spinnerActive, revMs, orbitR, originX, originY]);
+  }, [spinnerActive, revMs, orbitR]);
 
   // Reduced-motion spinner: static arc so the state still reads as “loading”.
   useEffect(() => {
@@ -581,8 +587,8 @@ export function InteractiveGridPattern({
         return;
       }
       const now = performance.now();
-      const cx = originX * (geom.cols - 1);
-      const cy = originY * (geom.rows - 1);
+      const cx = originXRef.current * (geom.cols - 1);
+      const cy = originYRef.current * (geom.rows - 1);
       trailRef.current.clear();
       for (let i = 0; i < 5; i += 1) {
         const angle = -Math.PI / 2 + (i / 8) * Math.PI * 2;
@@ -601,7 +607,7 @@ export function InteractiveGridPattern({
     };
 
     paintStatic();
-  }, [spinner, reduceMotion, orbitR, originX, originY, fadeMs]);
+  }, [spinner, reduceMotion, orbitR, fadeMs]);
 
   const waveActive = wave && !reduceMotion;
 
