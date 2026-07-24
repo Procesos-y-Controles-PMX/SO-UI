@@ -8,4 +8,6 @@ export {
   TypingAnimation,
   AnimatedSpan,
 } from "./terminal";
+export { ThemeProvider } from "./theme/ThemeProvider";
+export { ThemeToggle } from "./theme/ThemeToggle";
 export { cn } from "./lib/cn";
