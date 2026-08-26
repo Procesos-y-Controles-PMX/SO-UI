@@ -20,7 +20,7 @@ export const FIELD_SELECT_TRIGGER =
   "neu-field min-h-12 w-full rounded-sm py-2.5 text-base text-fg focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 md:min-h-0 md:text-sm";
 
 export const BTN_PRIMARY =
-  "btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed sm:w-auto md:min-h-0";
+  "btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-sm px-6 py-2.5 text-sm font-semibold disabled:cursor-not-allowed sm:w-auto md:min-h-0";
 
 export const BTN_SECONDARY =
   "neu-button inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold text-fg-strong disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto md:min-h-0";
@@ -80,6 +80,11 @@ export const FILTER_CONTROL_COMPACT_CLASS =
 
 /** Layout only — add `flex` when the sidebar is visible (never with `hidden`). */
 export const SIDEBAR_SHELL = "neu-sidebar h-screen flex-col";
+
+/** Equipo Móvil grout between raised nav tiles (collapsed icons use the same). */
+export const SIDEBAR_NAV_LIST = "flex flex-col gap-2.5 px-2";
+
+export const SIDEBAR_NAV_LIST_COLLAPSED = "flex flex-col items-center gap-2.5 px-2";
 
 export const SIDEBAR_NAV_ACTIVE = "neu-nav-active text-white";
 
