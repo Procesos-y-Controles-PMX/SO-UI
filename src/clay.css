@@ -1,0 +1,574 @@
+/*
+ * Clay (neumorphic) design layer for the SO Promexma suite.
+ *
+ * Import once in each app, after Tailwind:
+ *
+ *   @import "tailwindcss";
+ *   @import "@promexma/ui/clay.css";
+ *
+ * Surfaces share the canvas color; depth is only the paired light/dark
+ * shadows. That is why the primitives never take a border.
+ *
+ * A var() inside a custom property is substituted where it is declared, so
+ * the shadow composites are repeated in :root, .dark, and .neu-sidebar —
+ * remapping only --neu-light/--neu-dark would leave them pointing at light
+ * values.
+ */
+
+:root {
+  --background: #e8ecf3;
+  --foreground: #171717;
+  --brand: #ed1c24;
+  --brand-hover: #c9171e;
+  --brand-active: #a81419;
+  --surface: #e8ecf3;
+  --steel: #34507a;
+  --steel-tint: rgba(52, 80, 122, 0.12);
+  --brand-tint: rgba(237, 28, 36, 0.09);
+  --status-crit: #dc2626;
+  --focus-ring-color: var(--steel);
+
+  --neu-bg: #e8ecf3;
+  /* Highlight sits just above the canvas — pure white + a wide blur reads as glow. */
+  --neu-light: #f3f6fb;
+  --neu-dark: #c2ccda;
+
+  --clay-dark-bg: #1b2027;
+  --clay-dark-light: #242b34;
+  --clay-dark-shade: #0e1116;
+
+  --neu-raised: -3px -3px 6px var(--neu-light), 4px 4px 8px var(--neu-dark);
+  --neu-raised-sm: -2px -2px 4px var(--neu-light), 2px 2px 5px var(--neu-dark);
+  --neu-raised-lg: -4px -4px 9px var(--neu-light), 5px 5px 11px var(--neu-dark);
+  --neu-pressed: inset -2px -2px 5px var(--neu-light), inset 3px 3px 6px var(--neu-dark);
+  --neu-pressed-sm: inset -1px -1px 3px var(--neu-light), inset 2px 2px 4px var(--neu-dark);
+
+  --grid-line: rgba(150, 165, 187, 0.42);
+  --grid-emboss: #eef2f7;
+  --grid-shade: rgba(172, 184, 202, 0.45);
+
+  --fg: #0f172a;
+  --fg-strong: #334155;
+  --fg-muted: #475569;
+  --fg-subtle: #64748b;
+  --fg-faint: #94a3b8;
+  --card: var(--neu-bg);
+  /* Kept a step off the canvas: hover:bg-muted reads as a gentle recess. */
+  --muted: #dfe5ee;
+  --muted-strong: #d3dbe6;
+  --line: rgba(148, 163, 184, 0.22);
+  --line-subtle: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.34);
+  --canvas: var(--neu-bg);
+
+  --shadow-card: var(--neu-raised);
+  --shadow-card-hover: var(--neu-raised-lg);
+
+  --motion-instant: 90ms;
+  --motion-quick: 180ms;
+  --motion-settle: 280ms;
+  --motion-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: var(--clay-dark-bg);
+  --foreground: #e6edf3;
+  --surface: var(--clay-dark-bg);
+  --steel-tint: rgba(120, 150, 200, 0.16);
+  --brand-tint: rgba(237, 28, 36, 0.14);
+  --focus-ring-color: #5b7fc0;
+
+  --neu-bg: var(--clay-dark-bg);
+  --neu-light: var(--clay-dark-light);
+  --neu-dark: var(--clay-dark-shade);
+  --neu-raised: -3px -3px 6px var(--neu-light), 4px 4px 8px var(--neu-dark);
+  --neu-raised-sm: -2px -2px 4px var(--neu-light), 2px 2px 5px var(--neu-dark);
+  --neu-raised-lg: -4px -4px 9px var(--neu-light), 5px 5px 11px var(--neu-dark);
+  --neu-pressed: inset -2px -2px 5px var(--neu-light), inset 3px 3px 6px var(--neu-dark);
+  --neu-pressed-sm: inset -1px -1px 3px var(--neu-light), inset 2px 2px 4px var(--neu-dark);
+  --shadow-card: var(--neu-raised);
+  --shadow-card-hover: var(--neu-raised-lg);
+
+  --grid-line: rgba(0, 0, 0, 0.5);
+  --grid-emboss: rgba(255, 255, 255, 0.085);
+  --grid-shade: rgba(0, 0, 0, 0.4);
+
+  --fg: #e6edf3;
+  --fg-strong: #c9d1d9;
+  --fg-muted: #9da7b2;
+  --fg-subtle: #8b95a1;
+  --fg-faint: #6e7681;
+  --card: var(--neu-bg);
+  --muted: #22282f;
+  --muted-strong: #151a20;
+  --line: rgba(255, 255, 255, 0.06);
+  --line-subtle: rgba(255, 255, 255, 0.04);
+  --line-strong: rgba(255, 255, 255, 0.1);
+  --canvas: var(--neu-bg);
+}
+
+.dark body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-tint: var(--brand-tint);
+  --color-steel: var(--steel);
+  --color-fg: var(--fg);
+  --color-fg-strong: var(--fg-strong);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+  --color-canvas: var(--canvas);
+  --color-status-crit: var(--status-crit);
+
+  /* Clay scale — depth needs a radius the shadow can wrap around.
+     rounded-full stays circular for avatars/dots/pills. */
+  --radius-xs: 6px;
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 28px;
+}
+
+.app-canvas {
+  background-color: var(--canvas);
+}
+
+.app-canvas-dots {
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.32) 0.8px, transparent 0.8px);
+  background-size: 20px 20px;
+}
+
+/* ============================================================
+   Primitives. Depth is shadow-only; these never carry a border.
+   ============================================================ */
+
+.neu-raised,
+.neu-raised-sm,
+.neu-raised-lg,
+.neu-pressed,
+.neu-pressed-sm,
+.neu-flat,
+.neu-button,
+.neu-tray,
+.neu-popover,
+.neu-nav-active,
+.neu-field,
+.card-panel,
+.input-field,
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  border: 0;
+}
+
+.neu-raised {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised);
+}
+
+.neu-raised-sm {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.neu-raised-lg {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-lg);
+}
+
+.neu-pressed {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed);
+}
+
+.neu-pressed-sm {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.neu-flat {
+  background: var(--neu-bg);
+  box-shadow: none;
+}
+
+/*
+ * Clip contents without clipping the paired shadow. overflow: hidden on the
+ * same node as .neu-raised crops the lift — put this on a child instead.
+ */
+.neu-clip {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.neu-button {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  transition:
+    box-shadow var(--motion-quick) var(--motion-ease),
+    color var(--motion-quick) var(--motion-ease);
+}
+
+.neu-button:hover:not(:disabled) {
+  box-shadow: var(--neu-raised);
+}
+
+.neu-button:active:not(:disabled),
+.neu-button[data-pressed="true"] {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.neu-tray {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.neu-field {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed-sm);
+  transition: box-shadow var(--motion-quick) var(--motion-ease);
+}
+
+.neu-field:hover:not(:disabled):not(:focus) {
+  box-shadow: var(--neu-pressed);
+}
+
+.neu-field:focus,
+.neu-field:focus-within {
+  box-shadow:
+    var(--neu-pressed),
+    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+}
+
+.neu-field:disabled {
+  color: var(--fg-subtle);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.neu-popover {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-lg);
+}
+
+.neu-option {
+  transition: box-shadow var(--motion-instant) var(--motion-ease);
+}
+
+.neu-option:hover {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.neu-nav-active {
+  background: linear-gradient(145deg, var(--brand), var(--brand-active));
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.neu-nav-idle {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  transition:
+    box-shadow var(--motion-quick) var(--motion-ease),
+    color var(--motion-quick) var(--motion-ease);
+}
+
+.neu-nav-idle:hover {
+  box-shadow: var(--neu-raised);
+}
+
+.neu-nav-idle:active {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.btn-primary {
+  background: linear-gradient(145deg, var(--brand), var(--brand-active));
+  color: #fff;
+  box-shadow: var(--neu-raised-sm);
+  transition:
+    box-shadow var(--motion-quick) var(--motion-ease),
+    background var(--motion-quick) var(--motion-ease);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(145deg, var(--brand-hover), var(--brand-active));
+  box-shadow: var(--neu-raised);
+}
+
+.btn-primary:active:not(:disabled) {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.btn-primary:disabled {
+  box-shadow: var(--neu-raised-sm);
+  opacity: 0.6;
+}
+
+.btn-secondary,
+.btn-danger {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  transition:
+    box-shadow var(--motion-quick) var(--motion-ease),
+    color var(--motion-quick) var(--motion-ease);
+}
+
+.btn-secondary {
+  color: var(--fg-strong);
+}
+
+.btn-danger {
+  color: var(--brand);
+}
+
+.btn-secondary:hover:not(:disabled),
+.btn-danger:hover:not(:disabled) {
+  box-shadow: var(--neu-raised);
+}
+
+.btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+.card-panel {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised);
+}
+
+.input-field {
+  width: 100%;
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed-sm);
+  color: var(--fg);
+  outline: none;
+  transition: box-shadow var(--motion-quick) var(--motion-ease);
+}
+
+.input-field::placeholder {
+  color: var(--fg-faint);
+}
+
+.input-field:hover:not(:disabled):not(:focus) {
+  box-shadow: var(--neu-pressed);
+}
+
+.input-field:focus {
+  box-shadow:
+    var(--neu-pressed),
+    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+}
+
+.input-field:disabled {
+  color: var(--fg-subtle);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/*
+ * Shell chrome is its own dark clay island: it re-declares the neu palette
+ * so every .neu-* child extrudes against charcoal instead of the workspace.
+ */
+.neu-sidebar,
+.neu-bottom-bar,
+.neu-bottom-nav,
+.neu-dark-canvas {
+  color-scheme: dark;
+  --neu-bg: var(--clay-dark-bg);
+  --neu-light: var(--clay-dark-light);
+  --neu-dark: var(--clay-dark-shade);
+  --neu-raised: -3px -3px 6px var(--neu-light), 4px 4px 8px var(--neu-dark);
+  --neu-raised-sm: -2px -2px 4px var(--neu-light), 2px 2px 5px var(--neu-dark);
+  --neu-raised-lg: -4px -4px 9px var(--neu-light), 5px 5px 11px var(--neu-dark);
+  --neu-pressed: inset -2px -2px 5px var(--neu-light), inset 3px 3px 6px var(--neu-dark);
+  --neu-pressed-sm: inset -1px -1px 3px var(--neu-light), inset 2px 2px 4px var(--neu-dark);
+
+  --fg: #e6edf3;
+  --fg-strong: #c9d1d9;
+  --fg-muted: #9da7b2;
+  --fg-subtle: #8b95a1;
+  --fg-faint: #6e7681;
+
+  --grid-line: rgba(0, 0, 0, 0.5);
+  --grid-emboss: rgba(255, 255, 255, 0.085);
+  --grid-shade: rgba(0, 0, 0, 0.4);
+
+  background: var(--neu-bg);
+  color: var(--fg);
+}
+
+.neu-dark-canvas {
+  box-shadow: none;
+}
+
+.neu-sidebar {
+  box-shadow:
+    0 -2px 0 var(--neu-bg),
+    -2px 0 0 var(--neu-bg),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    12px 0 32px -14px rgba(14, 17, 22, 0.5);
+}
+
+.neu-bottom-bar,
+.neu-bottom-nav {
+  box-shadow:
+    0 2px 0 var(--neu-bg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 -12px 32px -14px rgba(14, 17, 22, 0.5);
+}
+
+/* ============================================================
+   Module sweep — pre-clay `bg-card border` → clay.
+   Directional rules (`border-b`) never match. Table cells are left out
+   on purpose: a bordered td/th is a grid line, not a panel.
+   ============================================================ */
+
+:where(div, section, article, aside, li, ul, ol, header, footer, nav, form, dl, table, figure, details, summary).bg-card.border {
+  border-color: transparent;
+  box-shadow: var(--neu-raised-sm);
+}
+
+:where(div, section, article, aside, li, header, footer, nav, form).bg-card.border.overflow-hidden {
+  box-shadow: none;
+  filter: drop-shadow(-2px -2px 4px var(--neu-light)) drop-shadow(2px 2px 5px var(--neu-dark));
+}
+
+:where(div, section, article, aside, li, header, footer, nav, form).bg-card.border:where(.shadow-md, .shadow-lg, .shadow-xl) {
+  box-shadow: var(--neu-raised-lg);
+}
+
+:where(input, select, textarea).bg-card.border,
+:where(input, select, textarea).bg-muted.border {
+  border-color: transparent;
+  box-shadow: var(--neu-pressed-sm);
+}
+
+:where(input, select, textarea).bg-card.border:focus,
+:where(input, select, textarea).bg-muted.border:focus {
+  box-shadow:
+    var(--neu-pressed),
+    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+}
+
+:where(button, a).bg-card.border {
+  border-color: transparent;
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow var(--motion-quick) var(--motion-ease);
+}
+
+:where(button, a).bg-card.border:hover:not(:disabled) {
+  box-shadow: var(--neu-raised);
+}
+
+:where(button, a).bg-card.border:active:not(:disabled) {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+:where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+/* Suite chrome that every app was copy-pasting. */
+
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-scroll:hover {
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+@keyframes rail-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.animate-rail-glow {
+  animation: rail-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes module-enter-up {
+  from { opacity: 0; transform: translate3d(0, 22px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes module-enter-down {
+  from { opacity: 0; transform: translate3d(0, -22px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes module-enter-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.module-enter-up { animation: module-enter-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.module-enter-down { animation: module-enter-down 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.module-enter-fade { animation: module-enter-fade 0.22s ease-out both; }
+
+@keyframes so-skeleton-sweep {
+  0% { transform: translateX(-120%); }
+  60%, 100% { transform: translateX(220%); }
+}
+
+@keyframes so-refresh-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes so-updated-flash {
+  0% { background-color: rgba(52, 80, 122, 0); }
+  18% { background-color: var(--steel-tint); }
+  100% { background-color: rgba(52, 80, 122, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rail-glow { animation: none; }
+
+  .module-enter-up,
+  .module-enter-down,
+  .module-enter-fade {
+    animation: module-enter-fade 0.15s ease-out both;
+  }
+
+  [style*="so-skeleton-sweep"] { animation: none; }
+}

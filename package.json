@@ -1,17 +1,20 @@
 {
   "name": "@promexma/ui",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Shared UI primitives for the SO Promexma suite",
   "license": "UNLICENSED",
   "private": false,
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/clay.css"
+  ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./clay.css": "./src/clay.css"
   },
   "files": [
     "src"

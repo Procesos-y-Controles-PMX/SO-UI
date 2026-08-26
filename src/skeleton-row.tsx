@@ -111,14 +111,4 @@ export function SkeletonRow({
   );
 }
 
-/**
- * Add once to each app's globals.css (SO-UI ships no stylesheet):
- *
- *   @keyframes so-skeleton-sweep {
- *     0%   { transform: translateX(-120%) }
- *     60%, 100% { transform: translateX(220%) }
- *   }
- *   @media (prefers-reduced-motion: reduce) {
- *     [style*="so-skeleton-sweep"] { animation: none }
- *   }
- */
+/** Keyframes live in `clay.css` (`so-skeleton-sweep`). */

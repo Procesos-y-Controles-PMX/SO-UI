@@ -123,13 +123,4 @@ export function useUpdatedFlash<T>(
   return changed;
 }
 
-/**
- * Add once to each app's globals.css:
- *
- *   @keyframes so-refresh-spin { to { transform: rotate(360deg) } }
- *   @keyframes so-updated-flash {
- *     0%   { background-color: rgba(52, 80, 122, 0) }
- *     18%  { background-color: var(--steel-tint) }
- *     100% { background-color: rgba(52, 80, 122, 0) }
- *   }
- */
+/** Keyframes live in `clay.css` (`so-refresh-spin`, `so-updated-flash`). */

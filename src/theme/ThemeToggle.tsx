@@ -33,11 +33,9 @@ export function ThemeToggle({ hidden, className, ...props }: ThemeToggleProps) {
       title={isDark ? "Modo claro" : "Modo oscuro"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-lg",
-        "border border-slate-200 bg-white text-slate-600 transition-colors",
-        "hover:bg-slate-50 hover:text-slate-900",
-        "dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color,#34507A)]",
+        "neu-button inline-flex h-9 w-9 items-center justify-center rounded-sm text-fg-muted",
+        "hover:text-fg",
+        "focus-visible:outline-none",
         className,
       )}
       {...props}

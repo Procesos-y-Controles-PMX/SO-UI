@@ -7,7 +7,7 @@
  * token, never a number.
  *
  * The curve is not new — it is the one already used by the sidebar width
- * transition and the module enter keyframes in every app's globals.css.
+ * transition and the module enter keyframes in clay.css.
  */
 
 export const motion = {
