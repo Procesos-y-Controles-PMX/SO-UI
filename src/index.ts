@@ -1,4 +1,4 @@
-export { NumberTicker } from "./number-ticker";
+export { NumberTicker, NUMBER_TICKER_DURATION } from "./number-ticker";
 export { InteractiveGridPattern } from "./interactive-grid-pattern";
 export type { InteractiveGridPatternProps } from "./interactive-grid-pattern";
 export { NoiseField } from "./noise-field";
