@@ -71,8 +71,9 @@
 }
 
 .dark {
+  /* Pure black behind the ambient NoiseField. Panels keep --neu-bg slate. */
   color-scheme: dark;
-  --background: var(--clay-dark-bg);
+  --background: #000000;
   --foreground: #e6edf3;
   --surface: var(--clay-dark-bg);
   --steel-tint: rgba(120, 150, 200, 0.16);
@@ -105,8 +106,8 @@
   --line: rgba(255, 255, 255, 0.06);
   --line-subtle: rgba(255, 255, 255, 0.04);
   --line-strong: rgba(255, 255, 255, 0.1);
-  --canvas: var(--neu-bg);
-}
+  --canvas: #000000;
+}}
 
 .dark body {
   background-color: var(--background);
