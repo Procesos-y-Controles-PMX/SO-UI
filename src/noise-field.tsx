@@ -39,7 +39,9 @@ import { cn } from "./lib/cn";
  * Motion has three independent parts, and the wind-like read depends on all
  * three being present:
  *
- * - `driftX` advects the field sideways (~17 px/s right, measured).
+ * - `driftX` advects the field sideways. Tuned so the field's apparent
+ *   velocity measures ~12 px/s, matching the reference; the value is lower
+ *   than that because `evolve` churn also carries features along.
  * - `gustAmplitude` makes that speed *vary* — the reference gusts between about
  *   +10 and +48 px/s. The gust is integrated into a position offset rather than
  *   applied as a velocity, so the field never jumps when the speed changes.
@@ -122,11 +124,11 @@ export interface NoiseFieldProps
   octaveAmplitude?: number;
   /** Frequency multiplier of the second octave. @default 2.9 */
   octaveFrequency?: number;
-  /** Sideways drift in CSS pixels per second. Positive blows right. @default 6 */
+  /** Sideways drift in CSS pixels per second. Positive blows right. @default 10 */
   driftX?: number;
   /** Vertical drift in CSS pixels per second. Positive drifts down. @default 0 */
   driftY?: number;
-  /** How much the sideways speed gusts, in CSS pixels per second. @default 6 */
+  /** How much the sideways speed gusts, in CSS pixels per second. @default 14 */
   gustAmplitude?: number;
   /** Rough seconds per gust cycle. @default 1.5 */
   gustSeconds?: number;
@@ -177,9 +179,9 @@ const DEFAULT_TEXTURE = 0.349;
 const DEFAULT_MAX_OPACITY = 0.99;
 const DEFAULT_OCTAVE_AMP = 0.19;
 const DEFAULT_OCTAVE_FREQ = 2.9;
-const DEFAULT_DRIFT_X = 6;
+const DEFAULT_DRIFT_X = 10;
 const DEFAULT_DRIFT_Y = 0;
-const DEFAULT_GUST_AMP = 6;
+const DEFAULT_GUST_AMP = 14;
 const DEFAULT_GUST_SECONDS = 1.5;
 const DEFAULT_EVOLVE = 0.14;
 /** Second gust harmonic, incommensurate with the first so gusts don't visibly repeat. */
