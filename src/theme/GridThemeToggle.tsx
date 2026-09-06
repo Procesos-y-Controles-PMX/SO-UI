@@ -6,14 +6,16 @@ import { useTheme } from "next-themes";
 import { cn } from "../lib/cn";
 
 export interface GridThemeToggleProps {
-  /** Icon-only square for the collapsed sidebar rail. */
+  /** Icon-only circle for the collapsed sidebar rail / mobile chrome. */
   compact?: boolean;
   className?: string;
 }
 
 /**
- * Canonical sidebar theme control — clay switch that slides between
- * claro and oscuro. Lives above the user card in every SO app.
+ * Canonical theme control for the SO suite — Equipo Móvil’s clay switch.
+ *
+ * Expanded: “Apariencia” label + pressed well with a raised knob that slides
+ * between claro and oscuro. Compact: round neu-button with a sun/moon crossfade.
  */
 export function GridThemeToggle({ compact = false, className }: GridThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
@@ -22,7 +24,11 @@ export function GridThemeToggle({ compact = false, className }: GridThemeToggleP
   useEffect(() => setMounted(true), []);
 
   const isDark = mounted ? resolvedTheme === "dark" : true;
-  const label = isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+  const label = !mounted
+    ? "Cambiar tema"
+    : isDark
+      ? "Cambiar a modo claro"
+      : "Cambiar a modo oscuro";
 
   function toggle() {
     setTheme(isDark ? "light" : "dark");
@@ -33,14 +39,31 @@ export function GridThemeToggle({ compact = false, className }: GridThemeToggleP
       <button
         type="button"
         aria-label={label}
-        title={isDark ? "Modo claro" : "Modo oscuro"}
+        title={label}
         onClick={toggle}
         className={cn(
-          "neu-button relative flex h-9 w-9 items-center justify-center rounded-sm text-fg",
+          "neu-button relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-fg-subtle hover:text-fg",
           className,
         )}
       >
-        {isDark ? <MoonGlyph /> : <SunGlyph />}
+        <span className="relative h-4 w-4">
+          <SunGlyph
+            className={cn(
+              "absolute inset-0 h-4 w-4 transition-all duration-[280ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              isDark
+                ? "scale-50 rotate-90 opacity-0"
+                : "scale-100 rotate-0 opacity-100",
+            )}
+          />
+          <MoonGlyph
+            className={cn(
+              "absolute inset-0 h-4 w-4 transition-all duration-[280ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              isDark
+                ? "scale-100 rotate-0 opacity-100"
+                : "scale-50 -rotate-90 opacity-0",
+            )}
+          />
+        </span>
       </button>
     );
   }
@@ -49,15 +72,12 @@ export function GridThemeToggle({ compact = false, className }: GridThemeToggleP
     <button
       type="button"
       aria-label={label}
-      title={isDark ? "Modo claro" : "Modo oscuro"}
+      title={label}
       onClick={toggle}
-      className={cn(
-        "neu-button group flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left",
-        className,
-      )}
+      className={cn("flex w-full items-center gap-3 rounded-sm text-left", className)}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fg-faint">
           Apariencia
         </p>
         <p className="mt-0.5 text-xs font-semibold text-fg-strong">
@@ -65,16 +85,24 @@ export function GridThemeToggle({ compact = false, className }: GridThemeToggleP
         </p>
       </div>
 
-      <span
-        className="neu-pressed relative h-7 w-12 shrink-0 rounded-full"
-        aria-hidden
-      >
+      <span aria-hidden className="neu-pressed relative h-8 w-14 shrink-0 rounded-full">
+        <SunGlyph
+          className={cn(
+            "absolute left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 transition-opacity duration-[280ms] motion-reduce:transition-none",
+            isDark ? "text-fg-faint opacity-40" : "text-fg-faint opacity-0",
+          )}
+        />
+        <MoonGlyph
+          className={cn(
+            "absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 transition-opacity duration-[280ms] motion-reduce:transition-none",
+            isDark ? "text-fg-faint opacity-0" : "text-fg-faint opacity-40",
+          )}
+        />
         <span
           className={cn(
-            "absolute top-0.5 flex h-6 w-6 items-center justify-center rounded-full",
-            "bg-[var(--brand)] text-white",
-            "transition-transform duration-[180ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
-            isDark ? "translate-x-[22px]" : "translate-x-0.5",
+            "neu-raised absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full text-fg",
+            "transition-transform duration-[280ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            isDark && "translate-x-6",
           )}
         >
           {isDark ? <MoonGlyph className="h-3 w-3" /> : <SunGlyph className="h-3 w-3" />}
@@ -90,8 +118,9 @@ function SunGlyph({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.4"
+      strokeWidth="2.2"
       strokeLinecap="round"
+      strokeLinejoin="round"
       className={cn("h-3.5 w-3.5", className)}
       aria-hidden
     >
@@ -107,7 +136,7 @@ function MoonGlyph({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.4"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={cn("h-3.5 w-3.5", className)}
