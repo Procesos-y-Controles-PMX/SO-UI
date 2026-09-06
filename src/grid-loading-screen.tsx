@@ -61,7 +61,7 @@ export function GridLoadingScreen({
         <NoiseField
           className="absolute inset-0"
           color={dark ? [255, 255, 255] : [52, 80, 122]}
-          maxOpacity={dark ? 0.5 : 0.2}
+          maxOpacity={dark ? 0.5 : 0.7}
         />
       </div>
 

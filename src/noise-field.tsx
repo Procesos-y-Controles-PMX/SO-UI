@@ -85,13 +85,13 @@ import { cn } from "./lib/cn";
  */
 export interface NoiseFieldProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "color"> {
-  /** Cell width in CSS pixels. @default 20 */
+  /** Cell width in CSS pixels. @default 10 */
   cellWidth?: number;
-  /** Cell height in CSS pixels. @default 50 */
+  /** Cell height in CSS pixels. @default 40 */
   cellHeight?: number;
   /** Space between cells in CSS pixels, both axes. @default 4 */
   gap?: number;
-  /** Corner radius in CSS pixels. Clamped to half the smaller cell side. @default 6 */
+  /** Corner radius in CSS pixels. Clamped to half the smaller cell side. @default 3 */
   radius?: number;
   /** Cell color as `[r, g, b]`, 0–255. Brightness drives alpha. @default [255,255,255] */
   color?: [number, number, number];
@@ -167,10 +167,10 @@ export interface NoiseFieldProps
   className?: string;
 }
 
-const DEFAULT_CELL_W = 20;
-const DEFAULT_CELL_H = 50;
+const DEFAULT_CELL_W = 10;
+const DEFAULT_CELL_H = 40;
 const DEFAULT_GAP = 4;
-const DEFAULT_RADIUS = 6;
+const DEFAULT_RADIUS = 3;
 const DEFAULT_FEATURE_W = 250;
 const DEFAULT_FEATURE_H = 212;
 const DEFAULT_CONTRAST = 1.96;
