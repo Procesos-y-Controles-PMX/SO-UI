@@ -107,7 +107,7 @@
   --line-subtle: rgba(255, 255, 255, 0.04);
   --line-strong: rgba(255, 255, 255, 0.1);
   --canvas: #000000;
-}}
+}
 
 .dark body {
   background-color: var(--background);
