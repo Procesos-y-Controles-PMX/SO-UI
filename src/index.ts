@@ -43,6 +43,12 @@ export {
   CHEVRON_SELECT,
   FILTER_CONTROL_CLASS,
   FILTER_CONTROL_COMPACT_CLASS,
+  SELECT_PANEL,
+  SELECT_OPTION_ROW,
+  SELECT_OPTION_SELECTED,
+  SELECT_OPTION_IDLE,
+  SELECT_CHECK_SELECTED,
+  SELECT_CHECK_IDLE,
   SIDEBAR_SHELL,
   SIDEBAR_NAV_LIST,
   SIDEBAR_NAV_LIST_COLLAPSED,
@@ -53,7 +59,14 @@ export {
 } from "./styles";
 
 // --- Motion system (design handoff: unified motion tokens + 5 interactions) ---
-export { motion, motionCss, MODAL_SPRING, MODAL_VARIANTS, MODAL_ITEM_VARIANTS } from "./motion";
+export {
+  motion,
+  motionCss,
+  MODAL_SPRING,
+  MODAL_VARIANTS,
+  MODAL_ITEM_VARIANTS,
+  FILTER_DROPDOWN_VARIANTS,
+} from "./motion";
 export { SkeletonRow } from "./skeleton-row";
 export type { SkeletonRowProps } from "./skeleton-row";
 export { Modal } from "./modal";
@@ -62,3 +75,39 @@ export { PendingButton } from "./pending-button";
 export type { PendingButtonProps, PendingState } from "./pending-button";
 export { RefreshButton, useUpdatedFlash } from "./refresh-button";
 export type { RefreshButtonProps } from "./refresh-button";
+
+// --- Form / filter catalog (Select, search, fields) ---
+export {
+  Dropdown,
+  DropdownItem,
+  AnimatedFilterDropdown,
+  AnimatedFilterDropdownItem,
+} from "./dropdown";
+export type { DropdownProps } from "./dropdown";
+export { SearchInput, AnimatedSearchInput } from "./search-input";
+export type { SearchInputProps, AnimatedSearchInputProps } from "./search-input";
+export { Select, FilterSelect, FormSelect } from "./select";
+export type { SelectProps } from "./select";
+export {
+  MultiSelect,
+  MultiSearchSelect,
+  FilterMultiSelect,
+  matchesMultiFilter,
+} from "./multi-select";
+export type {
+  MultiSelectProps,
+  FilterMultiSelectProps,
+  FilterMultiSelectOption,
+} from "./multi-select";
+export { SelectOptionRow } from "./select-option";
+export type { SelectOptionRowProps, SelectOptionMarker } from "./select-option";
+export { Field, Input, Textarea, NativeSelect } from "./field";
+export type { FieldProps, InputProps, TextareaProps, NativeSelectProps, NativeSelectOption } from "./field";
+export type {
+  SelectOption,
+  SelectOptionInput,
+  ControlIcon,
+  ControlSize,
+} from "./select-shared";
+export { normalizeOptions, filterOptions } from "./select-shared";
+export type { FilterSelectOption } from "./select-shared";

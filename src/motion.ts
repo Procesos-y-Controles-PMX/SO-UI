@@ -68,3 +68,45 @@ export const MODAL_ITEM_VARIANTS = {
   hidden: { y: 10, opacity: 0, transition: MODAL_SPRING },
   visible: { y: 0, opacity: 1, transition: MODAL_SPRING },
 } as const;
+
+const sec = (ms: number) => ms / 1000;
+
+/**
+ * Dropdown panel — height, not blur. The suite used to copy a 320ms KokonutUI
+ * expand into every app; this is the same gesture on the shared tokens.
+ */
+export const FILTER_DROPDOWN_VARIANTS = {
+  container: {
+    hidden: { opacity: 0, height: 0 },
+    show: {
+      opacity: 1,
+      height: "auto",
+      transition: {
+        height: { duration: sec(motion.settle), ease: motion.ease },
+        opacity: { duration: sec(motion.instant) },
+        staggerChildren: sec(motion.stagger),
+      },
+    },
+    exit: {
+      opacity: 0,
+      height: 0,
+      transition: {
+        height: { duration: sec(motion.quick), ease: motion.ease },
+        opacity: { duration: sec(motion.instant) },
+      },
+    },
+  },
+  item: {
+    hidden: { opacity: 0, y: 8 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: sec(motion.quick), ease: motion.ease },
+    },
+    exit: {
+      opacity: 0,
+      y: -4,
+      transition: { duration: sec(motion.instant) },
+    },
+  },
+} as const;

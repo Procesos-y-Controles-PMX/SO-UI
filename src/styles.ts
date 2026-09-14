@@ -78,6 +78,21 @@ export const FILTER_CONTROL_CLASS =
 export const FILTER_CONTROL_COMPACT_CLASS =
   "neu-field h-9 w-full rounded-sm text-xs font-medium text-fg outline-none disabled:cursor-not-allowed disabled:text-fg-muted";
 
+/** Floating menu surface — paired lift, never a CSS drop-shadow. */
+export const SELECT_PANEL = "neu-popover overflow-hidden rounded-sm";
+
+export const SELECT_OPTION_ROW =
+  "neu-option flex w-full items-center gap-2 px-3 py-2 text-left text-sm";
+
+export const SELECT_OPTION_SELECTED =
+  "bg-red-50 font-medium text-brand dark:bg-red-950/40";
+
+export const SELECT_OPTION_IDLE = "text-fg-strong";
+
+export const SELECT_CHECK_SELECTED = "border-brand bg-brand text-white";
+
+export const SELECT_CHECK_IDLE = "border-line-strong";
+
 /** Layout only — add `flex` when the sidebar is visible (never with `hidden`). */
 export const SIDEBAR_SHELL = "neu-sidebar h-screen flex-col";
 

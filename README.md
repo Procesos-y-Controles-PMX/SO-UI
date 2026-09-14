@@ -1,6 +1,6 @@
 # `@promexma/ui`
 
-Shared UI primitives for the SO Promexma suite (Portal, Cotizador, Permisos, Carta Responsiva, Equipo Móvil).
+Shared UI for the SO Promexma suite (Portal, Cotizador, Permisos, Carta Responsiva, Equipo Móvil, Tickets).
 
 ## Install
 
@@ -26,25 +26,51 @@ transpilePackages: ["@promexma/ui"]
 
 (Adjust the `@source` path if `globals.css` is not next to `app/`.)
 
-`clay.css` is the suite neomorphism layer: canvas-colored surfaces, paired light/dark shadows, `.neu-raised` / `.neu-pressed` / `.neu-button` / `.neu-field` / `.neu-sidebar`, and the clay radius scale. Apps should not redeclare those tokens.
+`clay.css` is the suite neomorphism layer: canvas-colored surfaces, paired light/dark shadows, `.neu-raised` / `.neu-pressed` / `.neu-button` / `.neu-field` / `.neu-sidebar` / `.neu-popover` / `.neu-option`, and the clay radius scale. Apps should not redeclare those tokens.
 
-Class-string helpers (`PANEL_CARD`, `FIELD_INPUT`, `SIDEBAR_SHELL`, …) are exported from the package entry.
+Class-string helpers (`PANEL_CARD`, `FIELD_INPUT`, `SIDEBAR_SHELL`, `FILTER_CONTROL_CLASS`, …) are exported from the package entry.
 
-## Usage
+## Catalog
+
+Tokens and motion stay the base layer. These React controls are the shared form/filter catalog — do not copy FilterSelect / MultiSearchSelect / AnimatedFilterDropdown into apps.
+
+| Export | Use |
+| --- | --- |
+| `Select` / `FilterSelect` | Single value, optional search (`searchable="auto"` past 6 options), portaled menu |
+| `FormSelect` | Same menu, field-height trigger for forms |
+| `MultiSelect` | Checkboxes. `searchPlacement="trigger"` is the sucursal type-to-filter field |
+| `MultiSearchSelect` | Equipo alias: string options, search in the trigger, clear chip |
+| `FilterMultiSelect` | Cotizador alias: `null` = all selected |
+| `SearchInput` | Filter search field |
+| `Dropdown` | Menu shell if you compose custom rows |
+| `Field` / `Input` / `Textarea` | Label + clay fields |
+| `NativeSelect` | OS `<select>` fallback — prefer `Select` |
+| `Modal` / `PendingButton` / `RefreshButton` | Existing suite primitives |
 
 ```tsx
-import {
-  NumberTicker,
-  InteractiveGridPattern,
-  Terminal,
-  TypingAnimation,
-  AnimatedSpan,
-} from "@promexma/ui";
+import { Field, FormSelect, MultiSearchSelect } from "@promexma/ui";
+import { Building2 } from "lucide-react";
 
-// Login / hero backdrop with ambient red wave, cursor trail, + hover
-<InteractiveGridPattern cellSize={40} skewY={6} wave trail />
+<Field label="Sucursal">
+  <FormSelect
+    value={sucursal}
+    onChange={setSucursal}
+    options={sucursales.map((name) => ({ value: name, label: name }))}
+  />
+</Field>
+
+<MultiSearchSelect
+  values={sucursales}
+  onChange={setSucursales}
+  options={sucursalOptions}
+  placeholder="Buscar sucursal..."
+  emptyLabel="Todas las sucursales"
+  icon={Building2}
+/>
 ```
+
+Decorative pieces (`NoiseField`, `InteractiveGridPattern`, `NumberTicker`, theme toggles) stay exported as before.
 
 ## Develop
 
-Edit here once → bump / push → apps pick up on next install (or pin a tag).
+Edit here once → bump / push → apps pick up on next install (or pin a SHA).

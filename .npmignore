@@ -1,0 +1,6 @@
+# Packed into apps via `files: ["src"]`. Keep the git/dev tree out of installs.
+.git
+.preview
+node_modules
+*.tsbuildinfo
+.DS_Store
