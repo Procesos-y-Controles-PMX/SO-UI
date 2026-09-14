@@ -194,6 +194,26 @@ describe("Select combobox a11y", () => {
 });
 
 describe("FormSelect and FilterSelect", () => {
+  it("defaults FormSelect to no search while FilterSelect keeps auto search", async () => {
+    const user = userEvent.setup();
+    function FormHarness() {
+      const [value, setValue] = useState("alpha");
+      return <FormSelect value={value} onChange={setValue} options={MANY_OPTIONS} portal={false} />;
+    }
+    const { unmount } = render(<FormHarness />);
+    await openSelect(user);
+    expect(screen.queryByPlaceholderText("Buscar...")).not.toBeInTheDocument();
+    unmount();
+
+    function FilterHarness() {
+      const [value, setValue] = useState("alpha");
+      return <FilterSelect value={value} onChange={setValue} options={MANY_OPTIONS} portal={false} />;
+    }
+    render(<FilterHarness />);
+    await openSelect(user);
+    expect(screen.getByPlaceholderText("Buscar...")).toBeInTheDocument();
+  });
+
   it("share the Tab-to-close combobox behavior", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<Harness Component={FormSelect} />);

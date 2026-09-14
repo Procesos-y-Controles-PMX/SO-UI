@@ -343,7 +343,7 @@ export const Select = memo(function Select({
 /** Filter-bar alias — same as `Select` with `size="filter"`. */
 export const FilterSelect = Select;
 
-/** Form-row alias — same menu, field-height trigger. */
-export function FormSelect({ size = "field", ...props }: SelectProps) {
-  return <Select size={size} {...props} />;
+/** Form-row alias — same menu, field-height trigger. Search is opt-in. */
+export function FormSelect({ size = "field", searchable = false, ...props }: SelectProps) {
+  return <Select size={size} searchable={searchable} {...props} />;
 }
