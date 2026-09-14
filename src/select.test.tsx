@@ -99,8 +99,10 @@ describe("Select combobox a11y", () => {
     await user.tab();
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.getByLabelText("after")).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
   });
 
   it("closes on Shift+Tab and moves focus to the previous field", async () => {
@@ -111,8 +113,10 @@ describe("Select combobox a11y", () => {
     await user.tab({ shift: true });
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.getByLabelText("before")).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
   });
 
   it("closes on Escape and keeps focus on the trigger", async () => {
@@ -150,6 +154,27 @@ describe("Select combobox a11y", () => {
 
     await user.keyboard(" ");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("closes on Tab when the menu is portaled", async () => {
+    const user = userEvent.setup();
+    render(<Harness portal />);
+    const trigger = await openSelect(user);
+    await user.tab();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByLabelText("after")).toHaveFocus();
+  });
+
+  it("closes and leaves when Tab is pressed from the search field", async () => {
+    const user = userEvent.setup();
+    render(<Harness searchable />);
+    const trigger = await openSelect(user);
+    const search = screen.getByPlaceholderText("Buscar...");
+    await user.click(search);
+    expect(search).toHaveFocus();
+    await user.tab();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByLabelText("after")).toHaveFocus();
   });
 
   it("selects the highlighted option with Enter while open", async () => {

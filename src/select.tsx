@@ -88,11 +88,28 @@ export const Select = memo(function Select({
   const activeOptionId =
     open && highlighted ? `${listId}-option-${highlightedIndex}` : undefined;
 
+  const filteredKey = filtered.map((option) => option.value).join("\0");
+  const wasOpenRef = useRef(false);
+  const prevFilteredKeyRef = useRef("");
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      prevFilteredKeyRef.current = "";
+      return;
+    }
     const selectedIndex = filtered.findIndex((option) => option.value === value);
-    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [open, filtered, value]);
+    const fallback = selectedIndex >= 0 ? selectedIndex : 0;
+    const opened = !wasOpenRef.current;
+    const listChanged = prevFilteredKeyRef.current !== filteredKey;
+    wasOpenRef.current = true;
+    prevFilteredKeyRef.current = filteredKey;
+    if (opened || listChanged) {
+      setHighlightedIndex(fallback);
+      return;
+    }
+    setHighlightedIndex((current) => (current < filtered.length ? current : fallback));
+  }, [filtered, filteredKey, open, value]);
 
   useEffect(() => {
     if (!open || !activeOptionId) return;
