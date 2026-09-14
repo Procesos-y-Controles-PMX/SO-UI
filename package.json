@@ -1,6 +1,6 @@
 {
   "name": "@promexma/ui",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Shared UI primitives for the SO Promexma suite",
   "license": "UNLICENSED",
   "private": false,
@@ -20,7 +20,8 @@
     "src"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "motion": "^12.0.0",
@@ -33,12 +34,17 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.1.1",
     "motion": "^12.42.2",
     "next-themes": "^0.4.6",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.0"
   }
 }

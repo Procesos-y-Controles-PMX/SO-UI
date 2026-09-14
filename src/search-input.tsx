@@ -17,6 +17,7 @@ export type SearchInputProps = {
   leftIcon?: ControlIcon;
   autoFocus?: boolean;
   name?: string;
+  tabIndex?: number;
 };
 
 /**
@@ -33,6 +34,7 @@ export function SearchInput({
   leftIcon: LeftIcon,
   autoFocus = false,
   name,
+  tabIndex,
 }: SearchInputProps) {
   const reduceMotion = useReducedMotion();
   const hasQuery = value.length > 0;
@@ -55,6 +57,7 @@ export function SearchInput({
         placeholder={placeholder}
         autoComplete="off"
         autoFocus={autoFocus}
+        tabIndex={tabIndex}
         className={
           className ??
           cn(

@@ -36,8 +36,8 @@ Tokens and motion stay the base layer. These React controls are the shared form/
 
 | Export | Use |
 | --- | --- |
-| `Select` / `FilterSelect` | Single value, optional search (`searchable="auto"` past 6 options), portaled menu |
-| `FormSelect` | Same menu, field-height trigger for forms |
+| `Select` / `FilterSelect` | Single value, optional search (`searchable="auto"` past 6 options), portaled combobox. Tab / Shift+Tab close and leave; options are not tab stops (`aria-activedescendant`) |
+| `FormSelect` | Same menu, field-height trigger for forms. Search is off unless `searchable` is set |
 | `MultiSelect` | Checkboxes. `searchPlacement="trigger"` is the sucursal type-to-filter field |
 | `MultiSearchSelect` | Equipo alias: string options, search in the trigger, clear chip |
 | `FilterMultiSelect` | Cotizador alias: `null` = all selected |
