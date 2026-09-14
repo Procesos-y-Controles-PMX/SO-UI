@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Dropdown, DropdownItem } from "./dropdown";
@@ -43,6 +43,8 @@ export type SelectProps = {
 const MENU_SEARCH_CLASS =
   "neu-field h-8 w-full rounded-sm px-2 pr-9 text-sm text-fg outline-none placeholder:text-fg-faint";
 
+const TYPEAHEAD_RESET_MS = 500;
+
 export const Select = memo(function Select({
   value,
   onChange,
@@ -59,11 +61,19 @@ export const Select = memo(function Select({
   emptyMessage = "Sin coincidencias",
   searchPlaceholder = "Buscar...",
 }: SelectProps) {
+  const listId = useId();
+  const listboxId = `${listId}-listbox`;
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const typeaheadRef = useRef("");
+  const typeaheadTimerRef = useRef<number>(0);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
+    typeaheadRef.current = "";
   }, []);
   const { triggerRef, panelRef, mounted, style } = useFloatingPanel(open, close);
 
@@ -74,10 +84,136 @@ export const Select = memo(function Select({
     [normalized, value],
   );
   const filtered = useMemo(() => filterOptions(normalized, query), [normalized, query]);
+  const highlighted = filtered[highlightedIndex];
+  const activeOptionId =
+    open && highlighted ? `${listId}-option-${highlightedIndex}` : undefined;
+
+  useEffect(() => {
+    if (!open) return;
+    const selectedIndex = filtered.findIndex((option) => option.value === value);
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0);
+  }, [open, filtered, value]);
+
+  useEffect(() => {
+    if (!open || !activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView({ block: "nearest" });
+  }, [open, activeOptionId]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(typeaheadTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const active = document.activeElement;
+        const inPanel = !!(panelRef.current && active && panelRef.current.contains(active));
+        const inInflowMenu = !!(
+          triggerRef.current &&
+          buttonRef.current &&
+          active &&
+          active !== buttonRef.current &&
+          triggerRef.current.contains(active)
+        );
+        close();
+        if (inPanel || inInflowMenu) {
+          buttonRef.current?.focus();
+        }
+        return;
+      }
+
+      if (event.key === "Escape") {
+        const active = document.activeElement;
+        const inPanel = !!(panelRef.current && active && panelRef.current.contains(active));
+        if (inPanel) buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [close, disabled, open, panelRef, triggerRef]);
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
     close();
+  };
+
+  const moveHighlight = (delta: number) => {
+    if (filtered.length === 0) return;
+    setHighlightedIndex((current) => (current + delta + filtered.length) % filtered.length);
+  };
+
+  const selectHighlighted = () => {
+    if (highlighted) handleSelect(highlighted.value);
+  };
+
+  const handleTypeahead = (character: string) => {
+    window.clearTimeout(typeaheadTimerRef.current);
+    typeaheadRef.current = `${typeaheadRef.current}${character}`.toLowerCase();
+    typeaheadTimerRef.current = window.setTimeout(() => {
+      typeaheadRef.current = "";
+    }, TYPEAHEAD_RESET_MS);
+    const match = filtered.findIndex((option) =>
+      option.label.toLowerCase().startsWith(typeaheadRef.current),
+    );
+    if (match >= 0) setHighlightedIndex(match);
+  };
+
+  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      else moveHighlight(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      else moveHighlight(-1);
+      return;
+    }
+
+    if (event.key === "Home" && open) {
+      event.preventDefault();
+      setHighlightedIndex(0);
+      return;
+    }
+
+    if (event.key === "End" && open) {
+      event.preventDefault();
+      setHighlightedIndex(Math.max(0, filtered.length - 1));
+      return;
+    }
+
+    if ((event.key === "Enter" || event.key === " ") && open) {
+      event.preventDefault();
+      selectHighlighted();
+      return;
+    }
+
+    if (!open) return;
+
+    if (event.key === "Backspace" && showSearch) {
+      event.preventDefault();
+      setQuery((current) => current.slice(0, -1));
+      return;
+    }
+
+    if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return;
+
+    if (showSearch) {
+      event.preventDefault();
+      setQuery((current) => current + event.key);
+      return;
+    }
+
+    event.preventDefault();
+    handleTypeahead(event.key);
   };
 
   const menu = (
@@ -89,21 +225,28 @@ export const Select = memo(function Select({
       {showSearch ? (
         <div className="border-b border-line-subtle p-2">
           <SearchInput
-            autoFocus
             className={MENU_SEARCH_CLASS}
             onChange={setQuery}
             placeholder={searchPlaceholder}
+            tabIndex={-1}
             value={query}
           />
         </div>
       ) : null}
-      <div className={portal ? "max-h-full overflow-y-auto" : "max-h-52 overflow-y-auto"}>
+      <div
+        id={listboxId}
+        role="listbox"
+        tabIndex={-1}
+        className={portal ? "max-h-full overflow-y-auto" : "max-h-52 overflow-y-auto"}
+      >
         {filtered.length === 0 ? (
           <p className="px-3 py-2 text-sm text-fg-muted">{emptyMessage}</p>
         ) : (
-          filtered.map((option) => (
+          filtered.map((option, index) => (
             <DropdownItem key={option.value}>
               <SelectOptionRow
+                highlighted={index === highlightedIndex}
+                id={`${listId}-option-${index}`}
                 marker="radio"
                 onSelect={() => handleSelect(option.value)}
                 selected={option.value === value}
@@ -137,14 +280,20 @@ export const Select = memo(function Select({
   return (
     <div ref={triggerRef} className={cn("relative w-full min-w-[140px]", className)}>
       <button
+        ref={buttonRef}
         type="button"
         id={id}
         disabled={disabled}
+        role="combobox"
+        aria-autocomplete={showSearch ? "list" : "none"}
+        aria-controls={listboxId}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-activedescendant={activeOptionId}
         onClick={() => {
           if (!disabled) setOpen((current) => !current);
         }}
+        onKeyDown={onTriggerKeyDown}
         className={cn(
           triggerSurfaceClass(size, inputClassName),
           "flex items-center text-left",

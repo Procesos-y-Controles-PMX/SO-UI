@@ -7,6 +7,7 @@ import { cn } from "./lib/cn";
 import {
   SELECT_CHECK_IDLE,
   SELECT_CHECK_SELECTED,
+  SELECT_OPTION_HIGHLIGHTED,
   SELECT_OPTION_IDLE,
   SELECT_OPTION_ROW,
   SELECT_OPTION_SELECTED,
@@ -20,6 +21,9 @@ export type SelectOptionRowProps = {
   marker?: SelectOptionMarker;
   children: React.ReactNode;
   className?: string;
+  id?: string;
+  /** Visual + SR active option for aria-activedescendant. Never a tab stop. */
+  highlighted?: boolean;
 };
 
 export function SelectOptionRow({
@@ -28,17 +32,23 @@ export function SelectOptionRow({
   marker = "radio",
   children,
   className,
+  id,
+  highlighted = false,
 }: SelectOptionRowProps) {
   return (
     <button
       type="button"
+      id={id}
       role="option"
+      tabIndex={-1}
       aria-selected={selected}
+      data-highlighted={highlighted || undefined}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onSelect}
       className={cn(
         SELECT_OPTION_ROW,
         selected ? SELECT_OPTION_SELECTED : SELECT_OPTION_IDLE,
+        highlighted && SELECT_OPTION_HIGHLIGHTED,
         className,
       )}
     >

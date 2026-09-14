@@ -125,7 +125,10 @@ export const MultiSelect = memo(function MultiSelect({
           />
         </div>
       ) : null}
-      <div className={portal ? "max-h-full overflow-y-auto" : "max-h-52 overflow-y-auto"}>
+      <div
+        tabIndex={-1}
+        className={portal ? "max-h-full overflow-y-auto" : "max-h-52 overflow-y-auto"}
+      >
         {selectAll ? (
           <DropdownItem>
             <SelectOptionRow marker="check" onSelect={handleSelectAll} selected={allSelected}>

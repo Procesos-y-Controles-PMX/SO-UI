@@ -33,6 +33,7 @@ export function Dropdown({
       {open ? (
         <motion.div
           animate={reduceMotion ? undefined : "show"}
+          tabIndex={-1}
           className={cn(
             SELECT_PANEL,
             "absolute top-full right-0 left-0 z-50 mt-1 w-full overflow-y-auto",
