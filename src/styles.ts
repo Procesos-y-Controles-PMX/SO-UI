@@ -91,6 +91,8 @@ export const SELECT_OPTION_ROW =
 export const SELECT_OPTION_SELECTED =
   "bg-brand-tint font-medium text-brand";
 
+export const SELECT_OPTION_HIGHLIGHTED = "bg-muted";
+
 export const SELECT_OPTION_IDLE = "text-fg-strong";
 
 export const SELECT_CHECK_SELECTED = "border-brand bg-brand text-white";
