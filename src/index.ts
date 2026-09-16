@@ -3,6 +3,8 @@ export { InteractiveGridPattern } from "./interactive-grid-pattern";
 export type { InteractiveGridPatternProps } from "./interactive-grid-pattern";
 export { NoiseField } from "./noise-field";
 export type { NoiseFieldProps } from "./noise-field";
+export { AMBIENT_NOISE_PROFILES, customAmbientNoise } from "./ambient-noise";
+export type { AmbientNoiseTune, CustomAmbientNoise } from "./ambient-noise";
 export { GridLoadingScreen } from "./grid-loading-screen";
 export type { GridLoadingScreenProps } from "./grid-loading-screen";
 export {
@@ -47,7 +49,6 @@ export {
   SELECT_OPTION_ROW,
   SELECT_OPTION_SELECTED,
   SELECT_OPTION_IDLE,
-  SELECT_OPTION_HIGHLIGHTED,
   SELECT_CHECK_SELECTED,
   SELECT_CHECK_IDLE,
   SIDEBAR_SHELL,
