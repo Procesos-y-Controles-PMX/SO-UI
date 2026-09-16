@@ -89,7 +89,7 @@ export const SELECT_OPTION_ROW =
   "neu-option flex w-full items-center gap-2 px-3 py-2 text-left text-sm";
 
 export const SELECT_OPTION_SELECTED =
-  "bg-red-50 font-medium text-brand dark:bg-red-950/40";
+  "bg-brand-tint font-medium text-brand";
 
 export const SELECT_OPTION_IDLE = "text-fg-strong";
 
