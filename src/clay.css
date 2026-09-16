@@ -26,7 +26,7 @@
   --steel-tint: rgba(52, 80, 122, 0.12);
   --brand-tint: rgba(237, 28, 36, 0.09);
   --status-crit: #dc2626;
-  --focus-ring-color: var(--steel);
+  --focus-ring-color: var(--brand);
 
   --neu-bg: #e8ecf3;
   /* Highlight sits just above the canvas — pure white + a wide blur reads as glow. */
@@ -78,7 +78,7 @@
   --surface: var(--clay-dark-bg);
   --steel-tint: rgba(120, 150, 200, 0.16);
   --brand-tint: rgba(237, 28, 36, 0.14);
-  --focus-ring-color: #5b7fc0;
+  --focus-ring-color: var(--brand);
 
   --neu-bg: var(--clay-dark-bg);
   --neu-light: var(--clay-dark-light);
@@ -145,6 +145,10 @@
   --radius-xl: 18px;
   --radius-2xl: 22px;
   --radius-3xl: 28px;
+}
+
+html {
+  accent-color: var(--brand);
 }
 
 .app-canvas {
@@ -254,7 +258,7 @@
 .neu-field:focus-within {
   box-shadow:
     var(--neu-pressed),
-    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--brand) 45%, transparent);
 }
 
 .neu-field:disabled {
@@ -406,7 +410,7 @@
 .input-field:focus {
   box-shadow:
     var(--neu-pressed),
-    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--brand) 45%, transparent);
 }
 
 .input-field:disabled {
@@ -504,7 +508,7 @@
 :where(input, select, textarea).bg-muted.border:focus {
   box-shadow:
     var(--neu-pressed),
-    0 0 0 2px color-mix(in srgb, var(--steel) 45%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--brand) 45%, transparent);
 }
 
 :where(button, a).bg-card.border {
