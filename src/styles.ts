@@ -28,6 +28,10 @@ export const BTN_SECONDARY =
 export const BTN_DANGER =
   "btn-danger inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0";
 
+/** Icon-only danger control — skip BTN_DANGER padding or the glyph gets squeezed. */
+export const BTN_ICON_DANGER =
+  "btn-danger inline-flex h-9 w-9 min-h-0 shrink-0 items-center justify-center gap-0 rounded-sm p-0 disabled:cursor-not-allowed disabled:opacity-50";
+
 export const FIELD_LABEL =
   "block text-xs font-semibold uppercase tracking-wider text-fg-subtle";
 
@@ -88,10 +92,6 @@ export const SELECT_OPTION_SELECTED =
   "bg-red-50 font-medium text-brand dark:bg-red-950/40";
 
 export const SELECT_OPTION_IDLE = "text-fg-strong";
-
-/** Keyboard active descendant — not a tab stop; focus stays on the combobox. */
-export const SELECT_OPTION_HIGHLIGHTED =
-  "outline outline-1 -outline-offset-1 outline-brand/50";
 
 export const SELECT_CHECK_SELECTED = "border-brand bg-brand text-white";
 

@@ -3,8 +3,14 @@ export { InteractiveGridPattern } from "./interactive-grid-pattern";
 export type { InteractiveGridPatternProps } from "./interactive-grid-pattern";
 export { NoiseField } from "./noise-field";
 export type { NoiseFieldProps } from "./noise-field";
-export { AMBIENT_NOISE_PROFILES, customAmbientNoise } from "./ambient-noise";
+export {
+  AMBIENT_NOISE_PROFILES,
+  AMBIENT_BRAND_VAR_KEYS,
+  brandVarsFromColor,
+  customAmbientNoise,
+} from "./ambient-noise";
 export type { AmbientNoiseTune, CustomAmbientNoise } from "./ambient-noise";
+export { useAmbientBrand } from "./use-ambient-brand";
 export { GridLoadingScreen } from "./grid-loading-screen";
 export type { GridLoadingScreenProps } from "./grid-loading-screen";
 export {
@@ -28,6 +34,7 @@ export {
   BTN_PRIMARY,
   BTN_SECONDARY,
   BTN_DANGER,
+  BTN_ICON_DANGER,
   FIELD_LABEL,
   BTN_GHOST,
   TABLE_WRAP,
