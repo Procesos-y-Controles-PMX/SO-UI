@@ -93,6 +93,10 @@ export const SELECT_OPTION_SELECTED =
 
 export const SELECT_OPTION_IDLE = "text-fg-strong";
 
+/** Keyboard active descendant — not a tab stop; focus stays on the combobox. */
+export const SELECT_OPTION_HIGHLIGHTED =
+  "outline outline-1 -outline-offset-1 outline-brand/50";
+
 export const SELECT_CHECK_SELECTED = "border-brand bg-brand text-white";
 
 export const SELECT_CHECK_IDLE = "border-line-strong";
