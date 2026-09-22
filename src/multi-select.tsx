@@ -111,7 +111,11 @@ export const MultiSelect = memo(function MultiSelect({
   const menu = (
     <Dropdown
       open={open && !disabled && (!portal || mounted)}
-      className={portal ? "relative mt-0 max-h-none w-full overflow-hidden" : "overflow-hidden"}
+      className={
+        portal
+          ? "relative mt-0 flex max-h-none min-h-0 w-full flex-col overflow-hidden"
+          : "overflow-hidden"
+      }
       maxHeightClass="max-h-none"
     >
       {showSearch && searchPlacement === "menu" ? (
@@ -127,7 +131,7 @@ export const MultiSelect = memo(function MultiSelect({
       ) : null}
       <div
         tabIndex={-1}
-        className={portal ? "max-h-full overflow-y-auto" : "max-h-52 overflow-y-auto"}
+        className={portal ? "min-h-0 flex-1 overflow-y-auto" : "max-h-52 overflow-y-auto"}
       >
         {selectAll ? (
           <DropdownItem>
@@ -166,7 +170,11 @@ export const MultiSelect = memo(function MultiSelect({
   const panel =
     portal && open && !disabled && mounted
       ? createPortal(
-          <div ref={panelRef} className="pointer-events-auto" style={style}>
+          <div
+            ref={panelRef}
+            className="pointer-events-auto flex flex-col overflow-hidden"
+            style={style}
+          >
             {menu}
           </div>,
           document.body,
