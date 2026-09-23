@@ -1,3 +1,4 @@
+-- OBSOLETE. Do not re-run. Superseded by drop-so-ambient-noise.sql.
 -- Shared/CP (and Equipo, same shape). Visual prefs only — not an admin grant.
 -- Adding a custom field: upsert a row. No app deploy.
 --

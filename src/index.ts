@@ -3,14 +3,6 @@ export { InteractiveGridPattern } from "./interactive-grid-pattern";
 export type { InteractiveGridPatternProps } from "./interactive-grid-pattern";
 export { NoiseField } from "./noise-field";
 export type { NoiseFieldProps } from "./noise-field";
-export {
-  AMBIENT_NOISE_PROFILES,
-  AMBIENT_BRAND_VAR_KEYS,
-  brandVarsFromColor,
-  customAmbientNoise,
-} from "./ambient-noise";
-export type { AmbientNoiseTune, CustomAmbientNoise } from "./ambient-noise";
-export { useAmbientBrand } from "./use-ambient-brand";
 export { GridLoadingScreen } from "./grid-loading-screen";
 export type { GridLoadingScreenProps } from "./grid-loading-screen";
 export {

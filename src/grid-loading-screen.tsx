@@ -22,14 +22,18 @@ export interface GridLoadingScreenProps {
   className?: string;
   /** Extra classes for the caption. */
   messageClassName?: string;
+  /**
+   * Noise field. Off everywhere except Portal, which opts in.
+   * @default false
+   */
+  noise?: boolean;
 }
 
 /**
  * Full-bleed handoff / session loading state.
  *
- * Matches the Portal login atmosphere: dense NoiseField capsules on a clay
- * canvas, with a small brand pulse and a centered caption. Replaces the older
- * InteractiveGridPattern + orbiting-cell spinner.
+ * Solid clay canvas with a small brand pulse and a centered caption.
+ * Pass `noise` only on Portal, which keeps the field.
  */
 export function GridLoadingScreen({
   message = "Cargando...",
@@ -39,6 +43,7 @@ export function GridLoadingScreen({
   trailMs: _trailMs,
   className,
   messageClassName,
+  noise = false,
 }: GridLoadingScreenProps) {
   void _spinnerMs;
   void _spinnerRadius;
@@ -57,13 +62,15 @@ export function GridLoadingScreen({
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <NoiseField
-          className="absolute inset-0"
-          color={dark ? [255, 255, 255] : [52, 80, 122]}
-          maxOpacity={dark ? 0.5 : 0.7}
-        />
-      </div>
+      {noise ? (
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <NoiseField
+            className="absolute inset-0"
+            color={dark ? [255, 255, 255] : [52, 80, 122]}
+            maxOpacity={dark ? 0.5 : 0.7}
+          />
+        </div>
+      ) : null}
 
       <div className="relative z-10 flex flex-col items-center gap-5">
         <div
